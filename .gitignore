@@ -1,0 +1,12 @@
+node_modules/
+dist/
+web/dist/
+server/dist/
+.env
+.env.*
+*.local
+runs.jsonl
+.DS_Store
+
+# Private working document — the staged build plan. Never committed.
+tribunal_plan.md
