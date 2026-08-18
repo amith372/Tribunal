@@ -13,7 +13,10 @@
     "build": "npm run build -w web && npm run build -w server",
     "start": "node server/dist/index.js",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "preflight:table": "npm run preflight:table -w server",
+    "test:ui": "npm run test:ui -w server",
+    "preflight:try": "npm run preflight:try -w server --"
   },
   "engines": {
     "node": ">=20"

@@ -10,7 +10,10 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
+    "preflight:table": "tsx scripts/preflight-table.ts",
+    "test:ui": "vitest --ui",
+    "preflight:try": "tsx scripts/preflight-try.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -19,6 +22,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
+    "@vitest/ui": "^4.1.11",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"

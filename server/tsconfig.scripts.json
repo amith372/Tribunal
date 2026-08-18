@@ -1,0 +1,7 @@
+{
+  // `scripts/` sits outside `rootDir: "src"`, so it is type-checked on its own config
+  // rather than being pulled into the build. Nothing here is ever emitted or shipped.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "rootDir": "." },
+  "include": ["scripts/**/*.ts"]
+}
