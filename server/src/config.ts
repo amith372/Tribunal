@@ -27,13 +27,20 @@ export type Mode = "solo" | "per-role";
  */
 export const FALLBACK_ROUTER = "openrouter/free";
 
-/** Roster verified live and $0 on OpenRouter on 2026-08-18. */
+/**
+ * Roster verified live and $0 on OpenRouter on 2026-08-21 (`npm run models:check`).
+ *
+ * The judge pool holds three *different lineages* on purpose (specs.md Part 1) — it
+ * previously ran two NVIDIA Nemotron 3 models, and two judges built from shared weights
+ * can agree for reasons that are not judicial, which a majority of three then lets
+ * decide the verdict.
+ */
 const DEFAULTS = {
   solo: "nvidia/nemotron-3-ultra-550b-a55b:free",
   judges: [
     "nvidia/nemotron-3-ultra-550b-a55b:free",
     "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "z-ai/glm-5.2:free",
   ],
   advocates: [
     "openai/gpt-oss-20b:free",
@@ -174,18 +181,36 @@ export function resolveRunModels(mode: Mode): RunModels {
 }
 
 /**
- * The chain tried for one call: the role's own model first, then the rest of its pool,
- * then the fallback router last (specs.md Part 5). Every entry is allowlisted by
- * construction, and openrouter.ts re-checks each one anyway.
+ * The chain tried for one call: the role's own model first, then any pool model *not
+ * already serving another role this run*, then the fallback router last.
+ *
+ * specs.md Part 1: no two roles share a model, and the distinctness holds under
+ * failure too. Failing a judge over onto a model another judge is using would put two
+ * judges on the same weights reading the same prompt — and with a majority of three, a
+ * pair that agrees for that reason decides the verdict, invisibly. So `assigned`
+ * removes those models from the chain rather than trusting the shuffle alone.
+ *
+ * In per-role mode every pool slot is taken (three judges / three models, four
+ * advocates / four models), so `spare` is empty and every chain is exactly
+ * `[own model, router]`. That is deliberate, and it is also what keeps the router
+ * reachable: openrouter.ts caps attempts at `DEFAULT_MAX_ATTEMPTS`, so a longer chain
+ * would have its tail — the router — never actually tried. `chainReachesRouter` holds
+ * that property under test.
+ *
+ * Every entry is allowlisted by construction, and openrouter.ts re-checks each anyway.
  */
 export function fallbackChainFor(
   primary: string,
   mode: Mode,
   kind: "judge" | "advocate",
+  /** Every model assigned to this kind of role in this run, from `resolveRunModels`. */
+  assigned: readonly string[] = [],
 ): string[] {
   const { judgePool, advocatePool } = getModelRegistry();
   const pool = mode === "solo" ? [] : kind === "judge" ? judgePool : advocatePool;
-  return [...new Set([primary, ...pool, FALLBACK_ROUTER])];
+  const inUse = new Set(assigned.filter((model) => model !== primary));
+  const spare = pool.filter((model) => model !== primary && !inUse.has(model));
+  return [...new Set([primary, ...spare, FALLBACK_ROUTER])];
 }
 
 export interface ServerConfig {

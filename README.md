@@ -26,7 +26,9 @@ it. `http://localhost:5173/api/health` should report five character names and th
 judge names read from `data/`.
 
 ```
-npm test        # Vitest, server-side
+npm test           # Vitest, server-side
+npm run models:check  # are the pinned free models still live?
+npm run record:demo   # print a finished run record and write a sample export, no calls spent
 npm run build   # web → web/dist, server → server/dist
 npm start       # one process serving both, http://localhost:3001
 ```
@@ -37,7 +39,7 @@ npm start       # one process serving both, http://localhost:3001
 |---|---|---|
 | `OPENROUTER_API_KEY` | model calls only | Everything else — health, the data files, the pre-flight — runs without it. |
 | `PORT` | no | Defaults to 3001. The host sets this in production. |
-| `TRIBUNAL_MODEL_*` | no | Swaps a delisted model identifier without a code change. |
+| `TRIBUNAL_MODEL_*` | no | Swaps a delisted model identifier without a code change. `npm run models:check` says which one died and what is free to replace it. |
 
 Put them in a `.env` file at the repo root for local development. It is gitignored; the
 key never belongs in the repo.

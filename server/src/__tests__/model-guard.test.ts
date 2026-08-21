@@ -15,6 +15,7 @@ import {
   resetModelRegistry,
   resolveRunModels,
 } from "../config.js";
+import { DEFAULT_MAX_ATTEMPTS } from "../openrouter.js";
 
 const OVERRIDE_KEYS = [
   "TRIBUNAL_MODEL_SOLO",
@@ -143,6 +144,32 @@ describe("per-run model resolution", () => {
   });
 });
 
+describe("pool composition", () => {
+  /**
+   * specs.md Part 1: a pool holds no two models of the same lineage. Shuffling three
+   * judges across models that share a training pipeline is not independence — two such
+   * judges can agree for reasons that are not judicial, and a majority of three lets
+   * that pair decide.
+   *
+   * The provider prefix is a proxy for lineage, not a definition of it: it catches the
+   * case this rule was written for (two NVIDIA Nemotron 3 models on the bench at once)
+   * without pretending to know how any two model families are related.
+   */
+  const providerOf = (id: string): string => id.split("/")[0] as string;
+
+  it("draws the judge pool from three separate providers", () => {
+    const { judgePool } = getModelRegistry();
+    const providers = judgePool.map(providerOf);
+    expect(new Set(providers).size).toBe(judgePool.length);
+  });
+
+  it("draws the advocate pool from separate providers too", () => {
+    const { advocatePool } = getModelRegistry();
+    const providers = advocatePool.map(providerOf);
+    expect(new Set(providers).size).toBe(advocatePool.length);
+  });
+});
+
 describe("fallback chains", () => {
   it("start at the role's model and end at the fallback router", () => {
     const registry = getModelRegistry();
@@ -167,5 +194,57 @@ describe("fallback chains", () => {
       registry.solo,
       FALLBACK_ROUTER,
     ]);
+  });
+
+  /**
+   * specs.md Part 1: no two roles share a model, and the distinctness holds under
+   * failure. Two judges on the same weights reading the same prompt can agree for
+   * reasons that are not judicial, and a majority of three lets one such pair decide.
+   */
+  it("never offer a model that is already serving another role in the run", () => {
+    const models = resolveRunModels("per-role");
+
+    for (const [index, primary] of models.judges.entries()) {
+      const chain = fallbackChainFor(primary, "per-role", "judge", models.judges);
+      const others = models.judges.filter((_, i) => i !== index);
+      for (const other of others) expect(chain).not.toContain(other);
+    }
+
+    for (const [index, primary] of models.advocates.entries()) {
+      const chain = fallbackChainFor(primary, "per-role", "advocate", models.advocates);
+      const others = models.advocates.filter((_, i) => i !== index);
+      for (const other of others) expect(chain).not.toContain(other);
+    }
+  });
+
+  it("collapse to the role's own model and the router once every slot is taken", () => {
+    const models = resolveRunModels("per-role");
+    const primary = models.judges[0] as string;
+
+    expect(fallbackChainFor(primary, "per-role", "judge", models.judges)).toEqual([
+      primary,
+      FALLBACK_ROUTER,
+    ]);
+  });
+
+  /**
+   * The router is the whole degradation guarantee (specs.md Part 5), and it is the
+   * last entry — so a chain longer than the attempt cap would leave it never tried.
+   * This is the regression guard for exactly that.
+   */
+  it("are short enough that the attempt cap still reaches the router", () => {
+    const models = resolveRunModels("per-role");
+    const chains = [
+      ...models.judges.map((m) => fallbackChainFor(m, "per-role", "judge", models.judges)),
+      ...models.advocates.map((m) =>
+        fallbackChainFor(m, "per-role", "advocate", models.advocates),
+      ),
+      fallbackChainFor(getModelRegistry().solo, "solo", "judge"),
+    ];
+
+    for (const chain of chains) {
+      expect(chain[chain.length - 1]).toBe(FALLBACK_ROUTER);
+      expect(chain.length).toBeLessThanOrEqual(DEFAULT_MAX_ATTEMPTS);
+    }
   });
 });

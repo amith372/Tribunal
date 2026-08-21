@@ -13,7 +13,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
     "preflight:table": "tsx scripts/preflight-table.ts",
     "test:ui": "vitest --ui",
-    "preflight:try": "tsx scripts/preflight-try.ts"
+    "preflight:try": "tsx scripts/preflight-try.ts",
+    "parser:table": "tsx scripts/parser-table.ts",
+    "prompts:print": "tsx scripts/prompts-print.ts",
+    "models:check": "tsx scripts/models-check.ts",
+    "record:demo": "tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

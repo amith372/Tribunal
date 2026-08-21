@@ -42,7 +42,7 @@ Duplicated here on purpose, so they still hold in a session that never opens `sp
 | server/client boundary, no-database stance, the export | Part 3 |
 | the Jon Snow validation case and the invalid cases | Part 4 |
 | failures, parsing, timeouts, rate limits, cost holes | Part 5 |
-| **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~15 KB, archive older months to `spec_logs_archive.md`. |
+| **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~70 KB, archive older months to `spec_logs_archive.md`. |
 
 ## Code conventions
 - Explicit, readable pipeline: `setup → statements → judging → aggregate`, one module each, framework-agnostic and unit-testable.
