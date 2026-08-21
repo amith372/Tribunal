@@ -13,10 +13,10 @@ import { getModelRegistry } from "../config.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
 import { preflight, type ValidRun } from "../preflight.js";
-import type { DeliveredStatement } from "../prompts.js";
+import { JUDGE_WORD_CAP, type DeliveredStatement } from "../prompts.js";
 import { PART_4_CAST, PART_4_CHARGE_SHEET } from "./preflight-cases.js";
-import { scriptedCaller } from "./fake-caller.js";
-import type { ErrorKind } from "../openrouter.js";
+import { fakeResult, scriptedCaller } from "./fake-caller.js";
+import type { CallOptions, CallResult, ErrorKind } from "../openrouter.js";
 
 const data = loadData();
 const models = getModelRegistry().judgePool;
@@ -166,6 +166,61 @@ describe("a reply that could not be read", () => {
   });
 });
 
+describe("a reply the provider cut off", () => {
+  /** A reply that parses perfectly well and is still only half a ruling. */
+  const SEVERED =
+    '{"verdict": "not_guilty", "reasoning": "The defense\'s uncontradicted assertion that the queen posed an existential threat, if accepted, satisfies the purposive requirement that the act served the supreme value of preserving';
+
+  const cutOff = (replies: readonly string[]) => {
+    let index = 0;
+    return async (options: CallOptions): Promise<CallResult> => {
+      if (options.label !== "judge:barak") return fakeResult(options, GUILTY);
+      const reply = replies[Math.min(index, replies.length - 1)] as string;
+      index++;
+      // `length` is what the provider reports when it hit the token ceiling.
+      return { ...fakeResult(options, reply), finishReason: index === 1 ? "length" : "stop" };
+    };
+  };
+
+  it("treats it as unreadable even when a verdict can be parsed out of it", async () => {
+    // Measured live on 2026-08-21: a judge spent 1,231 tokens thinking against a 1,000
+    // ceiling, his reasoning ended mid-sentence, and the parser salvaged a verdict from
+    // the fragment with nothing recording that the reply had been cut off at all.
+    const judging = await runJudging({
+      run,
+      data,
+      mode: "per-role",
+      models,
+      statements,
+      call: cutOff([SEVERED, GUILTY]),
+    });
+    const barak = judging.judges[0]!;
+
+    expect(barak.verdict).toBe("guilty"); // from the retry, not the severed reply
+    expect(barak.retryReason).toBe("unreadable_reply");
+    expect(barak.attempts).toHaveLength(2);
+  });
+
+  it("reports truncation as the reason when the second reply is cut off too", async () => {
+    const judging = await runJudging({
+      run,
+      data,
+      mode: "per-role",
+      models,
+      statements,
+      call: async (options: CallOptions): Promise<CallResult> =>
+        options.label === "judge:barak"
+          ? { ...fakeResult(options, SEVERED), finishReason: "length" }
+          : fakeResult(options, GUILTY),
+    });
+    const barak = judging.judges[0]!;
+
+    expect(barak.ok).toBe(false);
+    expect(barak.verdict).toBeNull();
+    expect(barak.problem).toBe("truncated");
+  });
+});
+
 describe("a verdict that arrived with no reasoning", () => {
   it("asks once more and takes the reasoning the second reply supplied", async () => {
     const { calls, result } = bench({
@@ -249,15 +304,16 @@ describe("a judge whose call failed outright", () => {
 
 describe("over-length, which is measured and not yet acted on", () => {
   it("flags reasoning over the cap without changing a word of it", async () => {
-    const long = Array.from({ length: 130 }, () => "word").join(" ");
+    const over = JUDGE_WORD_CAP + 30;
+    const long = Array.from({ length: over }, () => "word").join(" ");
     const { result } = bench({
       ...ALL_THREE,
       "judge:barak": [JSON.stringify({ verdict: "guilty", reasoning: long })],
     });
     const barak = (await result).judges[0]!;
 
-    expect(barak.reasoningWords).toBe(130);
-    expect(barak.wordCap).toBe(100);
+    expect(barak.reasoningWords).toBe(over);
+    expect(barak.wordCap).toBe(JUDGE_WORD_CAP);
     expect(barak.overCap).toBe(true);
     expect(barak.reasoning).toBe(long);
     expect(barak.ok).toBe(true);

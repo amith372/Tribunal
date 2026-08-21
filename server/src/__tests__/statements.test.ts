@@ -13,6 +13,7 @@ import { getModelRegistry } from "../config.js";
 import { loadData } from "../data.js";
 import { preflight, type ValidRun } from "../preflight.js";
 import { runStatements, toDeliveredStatements } from "../statements.js";
+import { ADVOCATE_WORD_CAP } from "../prompts.js";
 import { PART_4_CAST, PART_4_CHARGE_SHEET } from "./preflight-cases.js";
 import { fakeResult, scriptedCaller } from "./fake-caller.js";
 import type { CallOptions, CallResult } from "../openrouter.js";
@@ -193,12 +194,15 @@ describe("a wave where a whole side is lost", () => {
 
 describe("over-length, which is measured and not yet acted on", () => {
   it("flags a statement over the cap without changing a word of it", async () => {
-    const long = Array.from({ length: 150 }, () => "word").join(" ");
+    // Derived from the cap, never hardcoded — the caps were raised on live evidence
+    // on 2026-08-21 and a literal here would have to be chased every time.
+    const over = ADVOCATE_WORD_CAP + 30;
+    const long = Array.from({ length: over }, () => "word").join(" ");
     const { result } = wave({ ...ALL_FOUR, "advocate:tyrion": [long] });
     const tyrion = (await result).statements[0]!;
 
-    expect(tyrion.words).toBe(150);
-    expect(tyrion.wordCap).toBe(120);
+    expect(tyrion.words).toBe(over);
+    expect(tyrion.wordCap).toBe(ADVOCATE_WORD_CAP);
     expect(tyrion.overCap).toBe(true);
     expect(tyrion.text).toBe(long);
     expect(tyrion.ok).toBe(true);
@@ -235,6 +239,29 @@ describe("a reply that is about the task rather than the case", () => {
     // Both calls belong in the token table — the refused one really happened.
     expect(tyrion?.attempts.length).toBe(2);
     expect(result.complete).toBe(true);
+  });
+
+  it("asks a different model, not the one that just talked about the task", async () => {
+    // A reply about the task is a tendency, not a formatting slip — measured live on
+    // 2026-08-21, one model produced meta-commentary on both attempts of one call and
+    // again in the next run. Re-asking it spends a rationed request to be told the
+    // same thing.
+    const chains: (readonly string[])[] = [];
+    const call = async (options: CallOptions): Promise<CallResult> => {
+      if (options.label !== "advocate:tyrion") return fakeResult(options, "a statement");
+      chains.push(options.models);
+      return fakeResult(options, chains.length === 1 ? META : GOOD);
+    };
+
+    const result = await runStatements({ run, data, mode: "per-role", models, call });
+    expect(result.statements[0]?.ok).toBe(true);
+
+    const [first, second] = chains;
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    // The model that produced the refused reply is gone from the retry's chain.
+    expect(second).not.toContain(first?.[0]);
+    expect(second?.length).toBe((first?.length ?? 0) - 1);
   });
 
   it("marks the advocate failed when the second reply is no better", async () => {

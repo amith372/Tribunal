@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "test:verbose": "vitest run --reporter=verbose",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
     "preflight:table": "tsx scripts/preflight-table.ts",
@@ -17,7 +18,8 @@
     "parser:table": "tsx scripts/parser-table.ts",
     "prompts:print": "tsx scripts/prompts-print.ts",
     "models:check": "tsx scripts/models-check.ts",
-    "record:demo": "tsx scripts/record-demo.ts"
+    "record:demo": "tsx scripts/record-demo.ts",
+    "trial:run": "tsx scripts/trial-run.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

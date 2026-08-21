@@ -13,19 +13,23 @@
     "build": "npm run build -w web && npm run build -w server",
     "start": "node server/dist/index.js",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "test:verbose": "npm run test:verbose -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web && tsc -p tsconfig.scripts.json",
     "preflight:table": "npm run preflight:table -w server",
     "test:ui": "npm run test:ui -w server",
     "preflight:try": "npm run preflight:try -w server --",
     "parser:table": "npm run parser:table -w server",
     "prompts:print": "npm run prompts:print -w server",
     "models:check": "npm run models:check -w server",
-    "record:demo": "npm run record:demo -w server"
+    "record:demo": "npm run record:demo -w server",
+    "images:optimize": "tsx scripts/optimize-images.ts",
+    "trial:run": "npm run trial:run -w server --"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "concurrently": "^10.0.5",
+    "sharp": "^0.35.3"
   }
 }

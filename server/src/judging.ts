@@ -138,7 +138,17 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
         attempts.push(...first.attempts);
         const parsed = parseJudgeReply(first.text);
 
-        if (!parsed.verdict) {
+        // A reply the provider cut off is not an answer, however much of it parses.
+        // `statement-check.ts` has always read `finish_reason` this way on the advocate
+        // side; the bench had no equivalent, so a severed reply went to the parser as
+        // though it were finished. Measured 2026-08-21: a judge spent 1,231 tokens
+        // thinking against a 1,000 ceiling and his reasoning ended mid-sentence — the
+        // parser salvaged a verdict from the fragment and nothing recorded that the
+        // reply had been truncated at all. Treated as unreadable now, which buys the
+        // retry the spec already provides for.
+        if (first.finishReason === "length") {
+          outcome = await afterUnreadable(base, first, truncated(parsed), ask, attempts);
+        } else if (!parsed.verdict) {
           outcome = await afterUnreadable(base, first, parsed, ask, attempts);
         } else if (!parsed.reasoning) {
           outcome = await afterEmptyReasoning(base, first, parsed, ask, attempts);
@@ -179,6 +189,15 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
 type Base = Pick<JudgeOutcome, "judgeId" | "name" | "wordCap" | "requestedModel">;
 type Parsed = ReturnType<typeof parseJudgeReply>;
 type Ask = (retry?: boolean) => Promise<CallResult>;
+
+/**
+ * Marks a parse as unusable because the reply was cut off, whatever the text managed
+ * to yield. The verdict is dropped deliberately: a severed reply can parse cleanly and
+ * still be half a ruling.
+ */
+function truncated(parsed: Parsed): Parsed {
+  return { ...parsed, verdict: null, route: "none", problem: "truncated" };
+}
 
 /** Builds the outcome for a reply that was read successfully. */
 function settle(
@@ -231,7 +250,12 @@ async function afterUnreadable(
   }
   attempts.push(...second.attempts);
 
-  const parsed = parseJudgeReply(second.text);
+  // The retry is held to the same standard as the first reply: a severed answer is not
+  // an answer just because it is the second one. Without this the ceiling failure would
+  // slip through on the retry, which is exactly where it is least likely to be noticed.
+  const parsed = second.finishReason === "length"
+    ? truncated(parseJudgeReply(second.text))
+    : parseJudgeReply(second.text);
   if (parsed.verdict) return settle(base, second, parsed, "unreadable_reply", attempts);
   return unreadable(base, second, parsed, attempts, null);
 }

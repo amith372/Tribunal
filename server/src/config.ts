@@ -30,10 +30,31 @@ export const FALLBACK_ROUTER = "openrouter/free";
 /**
  * Roster verified live and $0 on OpenRouter on 2026-08-21 (`npm run models:check`).
  *
- * The judge pool holds three *different lineages* on purpose (specs.md Part 1) — it
+ * The judge pool holds *different lineages* on purpose (specs.md Part 1) — it
  * previously ran two NVIDIA Nemotron 3 models, and two judges built from shared weights
  * can agree for reasons that are not judicial, which a majority of three then lets
- * decide the verdict.
+ * decide the verdict. The spare below keeps that property: `poolside` is a fourth
+ * lineage, not a second Nemotron.
+ *
+ * **Each pool is larger than the number of roles it serves — deliberately.**
+ * `fallbackChainFor` excludes models already assigned to sibling roles, so a pool the
+ * same size as its role count leaves every chain one model deep: `[own model,
+ * FALLBACK_ROUTER]`. Five live trials on 2026-08-21 hit exactly that. Four roles were
+ * rate-limited on their pinned model, every one fell straight through to the router,
+ * and the router resolved a **vision** model and a **code** model into seats writing
+ * courtroom statements — the vision model produced the one statement that breached the
+ * grounding rule after it had been fixed. Six advocates for four seats and four judges
+ * for three give every role vetted spares, and leave the router as what it was meant to
+ * be: the last resort rather than the first.
+ *
+ * The spares are not guesses — each wrote usable output during those trials.
+ * `laguna-xs-2.1` returned a sound verdict, `lfm-2.5-2.6b` a clean 80-word statement,
+ * `nemotron-3.5-lightning` a good one for Cersei.
+ *
+ * Deliberately excluded although free and live: `cohere/north-mini-code` (a code model
+ * — 46s, then `bad_response`), `nvidia/nemotron-nano-12b-v2-vl` (vision — poor prose,
+ * and the post-fix grounding leak), `nvidia/nemotron-3.5-content-safety` (a classifier).
+ * A model being free is not a reason to hand it a role.
  */
 const DEFAULTS = {
   solo: "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -41,12 +62,19 @@ const DEFAULTS = {
     "nvidia/nemotron-3-ultra-550b-a55b:free",
     "google/gemma-4-31b-it:free",
     "z-ai/glm-5.2:free",
+    // One vetted spare, in a fourth lineage so the diversity rule above still holds.
+    "poolside/laguna-xs-2.1:free",
   ],
   advocates: [
     "openai/gpt-oss-20b:free",
     "google/gemma-4-26b-a4b-it:free",
     "dots-studio/dots-3-note-preview:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
+    // Two vetted spares. `liquid` is a fifth lineage — advocates do not vote, so shared
+    // weights matter less here than for judges, but four voices drawn from four makers
+    // is what gate question 1 is actually asking about.
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3.5-lightning:free",
   ],
 };
 

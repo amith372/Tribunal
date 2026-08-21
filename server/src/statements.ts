@@ -158,7 +158,20 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
         // one more call. Temperature 0 for the retry, as with an unreadable verdict.
         if (!screen.usable) {
           rescreened = true;
-          const second = await call({ ...request, temperature: 0 });
+          // **The retry moves to a different model.** Unlike an unreadable verdict —
+          // a formatting slip that temperature 0 can fix on the same model — a reply
+          // about the task rather than the case is a behavioural tendency, and asking
+          // again mostly returns another one. Measured on 2026-08-21: one advocate
+          // model produced meta-commentary on both attempts of the same call, and the
+          // same model did it again in the next run. So the model that produced the
+          // refused text is dropped from the chain for the second ask.
+          const refused = result.attempts.filter((a) => a.ok).at(-1)?.requestedModel;
+          const remaining = request.models.filter((model) => model !== refused);
+          const second = await call({
+            ...request,
+            models: remaining.length > 0 ? remaining : request.models,
+            temperature: 0,
+          });
           attempts.push(...second.attempts);
           const secondScreen = checkStatement(second.text, second.finishReason);
           if (secondScreen.usable) {

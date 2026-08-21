@@ -1,0 +1,20 @@
+{
+  // The root `scripts/` folder — currently just the image optimiser, which is a build
+  // tool and never shipped. It sits outside both workspaces and imports from
+  // `server/src` for the character roster, so it gets its own config rather than being
+  // pulled into either build. Mirrors `server/tsconfig.scripts.json`.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  "include": ["scripts/**/*.ts"]
+}

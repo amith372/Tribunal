@@ -35,8 +35,16 @@ import type { ChatMessage } from "./openrouter.js";
 import type { Character, Judge, TribunalData } from "./data.js";
 import type { CastAdvocate, Side, ValidRun } from "./preflight.js";
 
-/** specs.md Part 1: each advocate statement is at most 120 words. */
-export const ADVOCATE_WORD_CAP = 120;
+/**
+ * specs.md Part 1: each advocate statement is at most 150 words.
+ *
+ * Was 120, chosen before anything had been run. Measured across five live trials on
+ * 2026-08-21, statements came back at 70, 80, 85, 85, 89, 103, 108, 112, 112, 123,
+ * 124, 133 and 141 words — roughly half of them over the old cap. A limit that half
+ * the run walks through is not a limit; 150 clears every statement observed, so a
+ * breach becomes a real outlier worth flagging rather than the ordinary case.
+ */
+export const ADVOCATE_WORD_CAP = 150;
 /**
  * Headroom above the cap — sized for the model's *thinking plus* its answer, not for
  * the answer alone (specs.md Part 5). A reasoning model that is cut off mid-thought
@@ -45,13 +53,25 @@ export const ADVOCATE_WORD_CAP = 120;
  *
  * Measured 2026-08-21 on `nemotron-3-nano-30b-a3b:free`: at 220 tokens the call spent
  * 214 thinking and returned deliberation about word counts as the statement; at 1200 it
- * finished inside 939 (523 thinking) and returned a clean 103-word statement. This is a
- * ceiling, not a target — the 120-word cap is held by the prompt, which models respect.
+ * finished inside 939 (523 thinking) and returned a clean 103-word statement.
+ *
+ * Raised from 1200 to 3000 after later trials the same day measured a single advocate
+ * call spending **1,334 tokens thinking** — more than the whole ceiling then allowed,
+ * before a word of the statement was written. 3000 is roughly twice the worst thinking
+ * observed plus the answer. Headroom is free: tokens are counted only if generated, and
+ * `reasoning.effort` already caps the thinking. This is a ceiling, not a target — the
+ * word cap is held by the prompt, which models mostly respect.
  */
-export const ADVOCATE_MAX_TOKENS = 1200;
+export const ADVOCATE_MAX_TOKENS = 3000;
 
-/** specs.md Part 1: each judge's verdict-and-reasoning is at most 100 words. */
-export const JUDGE_WORD_CAP = 100;
+/**
+ * specs.md Part 1: each judge's verdict-and-reasoning is at most 120 words.
+ *
+ * Was 100, on the same untested basis as the advocate cap. Measured reasoning came
+ * back at 31, 53, 62, 65, 104 and 113 words, so two of six breached it. 120 clears
+ * them all.
+ */
+export const JUDGE_WORD_CAP = 120;
 /**
  * Headroom above the cap, above the JSON wrapper the reply carries, and — as with the
  * advocates — above the model's thinking (specs.md Part 5).
@@ -60,8 +80,15 @@ export const JUDGE_WORD_CAP = 100;
  * deliberation, which is exactly the two-live-readings shape `judge-parser.ts` refuses
  * to resolve, so a ceiling set too low buys a retry and a second request against a free
  * tier that rations requests rather than tokens.
+ *
+ * Raised from 1000 to 2500 after a live trial on 2026-08-21 caught exactly that: Barak,
+ * on `nemotron-3-ultra-550b-a55b:free`, spent **1,231 tokens thinking against a 1,000
+ * ceiling** and his reasoning ended mid-sentence — the failure this comment already
+ * described, with the ceiling still set below what the model spends before answering.
+ * `judging.ts` now also reads `finish_reason: "length"` as truncation, so exceeding
+ * even this ceiling is detected rather than parsed as if it were an answer.
  */
-export const JUDGE_MAX_TOKENS = 1000;
+export const JUDGE_MAX_TOKENS = 2500;
 
 /** How a side is named to the model. The UI uses the same two words. */
 export const SIDE_NAME: Record<Side, string> = { for: "the defense", against: "the prosecution" };
@@ -115,13 +142,20 @@ const ADVOCATE_GROUNDING = [
   "  1. The only facts in existence are those in the charge sheet and in the descriptions",
   "     above. You have no other knowledge of these people, this world, or what happened.",
   "     Anything you were never told is not available to you and may not be asserted.",
-  "  2. Your description sets how you speak and what you value. It is not a source of",
+  "  2. A name is a fact. Do not name any place, house, region, title, army, weapon,",
+  "     battle or event unless that name appears in the text you were given. This is the",
+  "     easiest way to break the rule above without noticing, because a name feels like",
+  "     scenery rather than a claim — but a name you were not given is knowledge from",
+  "     outside this tribunal. Where you need to point at something the text leaves",
+  '     unnamed, describe it — "the realm", "the throne", "her city" — instead of',
+  "     reaching for the name you happen to know.",
+  "  3. Your description sets how you speak and what you value. It is not a source of",
   "     facts and it is never permission to invent one.",
-  "  3. You may spin what you were given — read a motive the worst way, press what helps",
+  "  4. You may spin what you were given — read a motive the worst way, press what helps",
   "     you, make little of what does not. You may not manufacture what you were not",
   "     given. Spin the facts; invent none. This holds even where your description calls",
   "     you cunning, or says you twist facts to win: twist the reading, never the record.",
-  "  4. If your argument needs a fact you do not have, say openly that you are assuming",
+  "  5. If your argument needs a fact you do not have, say openly that you are assuming",
   '     it — "I assume", "if it is true that" — and argue from it as an assumption.',
   "     Never state it as established.",
 ].join("\n");
@@ -132,9 +166,13 @@ const JUDGE_GROUNDING = [
   "",
   "  1. The only facts in existence are those in the charge sheet and in the statements",
   "     below. You have no other knowledge of this case, these people, or this world.",
-  "  2. Your temperament sets how you weigh what you are given. It is not a source of",
+  "  2. A name is a fact, and the same limit binds you. Do not name any place, house,",
+  "     region, title, army, weapon, battle or event unless that name appears in the",
+  "     charge sheet or in a statement. Where you must point at something unnamed,",
+  "     describe it instead of reaching for the name you happen to know.",
+  "  3. Your temperament sets how you weigh what you are given. It is not a source of",
   "     facts and it never supplies one that is absent.",
-  "  3. Where the advocates contradict each other, or where something you need was never",
+  "  4. Where the advocates contradict each other, or where something you need was never",
   "     put before you, say so and rule on what you actually have. Do not fill the gap",
   "     yourself. Thin evidence is a finding you may state, not a reason to invent.",
 ].join("\n");

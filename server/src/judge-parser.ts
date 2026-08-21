@@ -47,7 +47,13 @@ export type SalvageProblem =
   /** Readable text, but no verdict word anywhere in it. */
   | "no_verdict"
   /** Both verdicts are live in the text, or a lone "guilty" sits under a negation. */
-  | "contradictory";
+  | "contradictory"
+  /**
+   * The provider cut the reply off (`finish_reason: "length"`). Set by `judging.ts`
+   * rather than found here — the parser sees only text, and a severed reply can parse
+   * perfectly well. It is not an answer, however much of it reads like one.
+   */
+  | "truncated";
 
 export interface ParsedJudgeReply {
   /** `null` whenever the reply did not clearly give one. Never inferred. */
@@ -76,6 +82,7 @@ export const PROBLEM_LABEL: Record<SalvageProblem, string> = {
   empty_reply: "the reply was empty",
   no_verdict: "no verdict word in the reply",
   contradictory: "both readings live — neither chosen",
+  truncated: "the provider cut the reply off",
 };
 
 const VERDICT_KEYS = ["verdict", "ruling", "decision", "finding", "judgment", "judgement", "result"];

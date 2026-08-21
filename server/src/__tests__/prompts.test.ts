@@ -77,6 +77,19 @@ describe("every prompt in the run", () => {
     }
   });
 
+  it("tells all seven that a name is a fact", () => {
+    // Added after the first live trial: the rule already forbade outside knowledge, and
+    // two statements still reached for "Seven Kingdoms" and "Slaver's Bay". A place name
+    // reads as scenery rather than as a claim, so it has to be named as a claim.
+    for (const prompt of allSeven()) {
+      // The two grounding blocks wrap at different points, so compare on the words.
+      const flat = text(prompt).replace(/\s+/g, " ");
+      expect(flat).toContain("A name is a fact");
+      expect(flat).toContain("place, house, region, title, army, weapon, battle or event");
+      expect(flat).toContain("describe it");
+    }
+  });
+
   it("states that the persona is not a source of facts", () => {
     for (const prompt of allSeven()) {
       expect(text(prompt)).toContain("It is not a source of");

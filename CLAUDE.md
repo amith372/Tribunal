@@ -12,6 +12,7 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 |---|---|
 | Backend | Node + TypeScript (Express); pure pipeline modules, thin routing layer |
 | Frontend | React + Vite + TypeScript, single page, SSE-driven |
+| Assets | Avatar art: 17 source PNGs in `C:\Users\Amit_PC\Downloads\Tribunal` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.png` / `undone_judge.png`. Downsample to ≤256 px WebP into `web/public/avatars/`; commit the WebP only, never the multi-MB originals |
 | Models | OpenRouter, free (`:free`) models only, identifiers server-side |
 | Persistence | **None** — the exported HTML file is the run record |
 | Deploy | Render free Web Service, kept awake by an external keep-warm pinger; `OPENROUTER_API_KEY` is a Render env var, never in the repo |
@@ -42,6 +43,7 @@ Duplicated here on purpose, so they still hold in a session that never opens `sp
 | server/client boundary, no-database stance, the export | Part 3 |
 | the Jon Snow validation case and the invalid cases | Part 4 |
 | failures, parsing, timeouts, rate limits, cost holes | Part 5 |
+| the look of a screen — frame, palette, type, tiles, buttons | the design canvas (all four screens, cast from the Jon Snow case): https://claude.ai/code/artifact/d7decf08-3027-4163-bab6-e03d67995478 — then Part 1 |
 | **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~70 KB, archive older months to `spec_logs_archive.md`. |
 
 ## Code conventions
