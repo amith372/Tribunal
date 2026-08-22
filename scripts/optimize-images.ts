@@ -4,7 +4,7 @@
  * The originals live outside the repo (~65 MB, several of them 5–6 MB each) and stay
  * there: committing them would put a 65 MB payload in a school project's history to
  * serve images the browser only ever sees at a few hundred pixels. Only the WebP output
- * is committed, at roughly 1–2 MB for the set.
+ * is committed, at a little over 200 KB for the set.
  *
  * **It fails loudly on a missing file rather than writing a partial set.** The avatar
  * names are derived from `data.ts` — the same `assetKey` mapping the app uses to find
@@ -28,11 +28,16 @@ import { loadData } from "../server/src/data.js";
 const DEFAULT_SOURCE = "C:/Users/Amit_PC/Downloads/Tribunal";
 
 /**
- * The longest edge, in pixels. The avatars are displayed as tiles a few hundred pixels
- * across at most, and 512 leaves headroom for a high-density screen without carrying a
- * print-resolution image to every visitor.
+ * The longest edge, in pixels.
+ *
+ * **256, and the reason is the export rather than the screen.** The largest tile any of
+ * the four screens draws is 70 px (Side Select), so 256 already covers a 2x display with
+ * room to spare — but what settles it is Stage 8, which embeds these as data URIs in a
+ * self-contained HTML file, where base64 adds about a third. Measured over all seventeen:
+ * 256 is 221 KB on disk and ~294 KB embedded; 512 was 541 KB and ~721 KB. The export is
+ * the run record, so it is the size that has to be defended, not the folder.
  */
-const MAX_EDGE = 512;
+const MAX_EDGE = 256;
 
 /**
  * WebP quality. 82 is the point where this particular art — flat colour, soft shading,

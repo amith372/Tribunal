@@ -1,5 +1,5 @@
 /**
- * gate-run.ts — Stage 4's gate, as one command that says what it found.
+ * gate-run.ts — the live-run gate, as one command that says what it found.
  *
  * This drives `POST /api/run` over real HTTP exactly as a browser will: it reads the
  * response body as a stream and prints each event the moment it lands, stamped with how
@@ -9,10 +9,12 @@
  * response would show every event at nearly the same offset, and Stage 7's avatars, which
  * move as each statement lands, cannot work against a stream that behaves that way.
  *
- * It checks the server is up before spending anything, and it reports the gate's five
- * questions at the end instead of leaving them to be read out of JSON by eye.
+ * It checks the server is up before spending anything, and it answers the gate's questions
+ * at the end instead of leaving them to be read out of JSON by eye. Five of them are the
+ * streaming endpoint's own; the last two are carried from Stage 3, which failed live on
+ * 2026-08-22 — a fix nobody has watched a model meet is not a fix yet.
  *
- *   npm run gate:run              Part 4's case — SPENDS 7 LIVE REQUESTS
+ *   npm run gate:run              Part 4's case — SPENDS 7 LIVE REQUESTS (more with retries)
  *   npm run gate:run -- invalid   a three-to-one split — spends none, expects a 400
  *   npm run gate:run -- raw       the same live run, printed as raw SSE frames
  *
@@ -20,6 +22,7 @@
  */
 
 import "../src/env.js";
+import { FALLBACK_ROUTER } from "../src/config.js";
 import type { RunRecord } from "../src/aggregate.js";
 import type { JudgeOutcome } from "../src/judging.js";
 import type { StatementOutcome } from "../src/statements.js";
@@ -203,7 +206,7 @@ async function readStream(body: ReadableStream<Uint8Array>, startedAt: number): 
   return frames;
 }
 
-/** The five things the gate actually asks, answered rather than left to the eye. */
+/** The things the gate actually asks, answered rather than left to the eye. */
 function report(frames: Frame[]): void {
   const done = frames.find((frame) => frame.event === "done");
   const record = done?.data as unknown as RunRecord | undefined;
@@ -240,6 +243,56 @@ function report(frames: Frame[]): void {
   line(record.totals.costUsd === 0, "price is $0 on free models", `$${record.totals.costUsd.toFixed(4)}`);
   line(statements === 4 && judges === 3, "four statements, three verdicts", `${statements} / ${judges}`);
 
+  // ── The two criteria carried from Stage 3, which failed live on 2026-08-22. ──
+  // Both were fixed the same day and neither has been seen against a model since, so
+  // the gate answers them here rather than leaving them to be spotted in the rows above.
+  const statementRows = frames
+    .filter((frame) => frame.event === "statement")
+    .map((frame) => frame.data as unknown as StatementOutcome);
+  const judgeRows = frames
+    .filter((frame) => frame.event === "judge")
+    .map((frame) => frame.data as unknown as JudgeOutcome);
+
+  // Margin is signed: positive is words to spare, negative is the overrun. Reporting the
+  // tightest margin rather than a yes/no keeps the trend visible — the overrun has been
+  // falling (232 → 199 → 162) and a run that only just holds is worth knowing about.
+  const margins = [
+    ...statementRows.filter((s) => s.ok && s.words !== null).map((s) => s.wordCap - (s.words as number)),
+    ...judgeRows.filter((j) => j.ok).map((j) => j.wordCap - j.reasoningWords),
+  ];
+  const over = [
+    ...statementRows.filter((s) => s.ok && s.overCap).map((s) => `${s.name} ${s.words}/${s.wordCap}`),
+    ...judgeRows.filter((j) => j.ok && j.overCap).map((j) => `${j.name} ${j.reasoningWords}/${j.wordCap}`),
+  ];
+  const tightest = margins.length > 0 ? Math.min(...margins) : 0;
+  line(
+    over.length === 0,
+    "every reply inside its word cap",
+    over.length === 0
+      ? `tightest margin ${tightest} words to spare`
+      : `over by up to ${-tightest}: ${over.join(", ")}`,
+  );
+
+  // A seat is served by whatever *answered*, not by what was asked for: the one way an
+  // unvetted model reaches a seat is the router resolving one. So both are checked —
+  // that no call fell through to the router at all, and that every seat names a model.
+  const seats = [
+    ...statementRows.map((s) => ({ name: s.name, model: s.ok ? s.model : null })),
+    ...judgeRows.map((j) => ({ name: j.name, model: j.ok ? j.model : null })),
+  ];
+  const routed = record.attempts.filter((a) => a.requestedModel === FALLBACK_ROUTER);
+  const unpinned = seats.filter((seat) => seat.model === FALLBACK_ROUTER || seat.model === null);
+  const distinct = new Set(seats.map((seat) => seat.model).filter((model) => model !== null));
+  line(
+    routed.length === 0 && unpinned.length === 0,
+    "every seat served by a pinned model",
+    routed.length > 0
+      ? `${routed.length} call${routed.length === 1 ? "" : "s"} fell through to ${FALLBACK_ROUTER}`
+      : unpinned.length > 0
+        ? `no model named for: ${unpinned.map((seat) => seat.name).join(", ")}`
+        : `${distinct.size} distinct models across ${seats.length} seats, router never reached`,
+  );
+
   console.log(`\n${THIN}`);
   console.log(
     `  ${record.totals.totalTokens} tokens (${record.totals.reasoningTokens} of them thinking) · ` +
@@ -260,8 +313,8 @@ async function main(): Promise<void> {
   console.log(`\n${RULE}`);
   console.log(
     invalid
-      ? "STAGE 4 GATE — the invalid case. Expect a 400 and ZERO model calls."
-      : `STAGE 4 GATE — POST /api/run, live${solo ? " (SOLO: one model, all seven seats)" : ""}. THIS MAKES 7 MODEL CALLS.`,
+      ? "LIVE RUN GATE — the invalid case. Expect a 400 and ZERO model calls."
+      : `LIVE RUN GATE — POST /api/run, live${solo ? " (SOLO: one model, all seven seats)" : ""}. THIS MAKES 7 MODEL CALLS.`,
   );
   console.log(RULE);
   console.log();
