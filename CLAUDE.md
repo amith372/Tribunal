@@ -44,7 +44,7 @@ Duplicated here on purpose, so they still hold in a session that never opens `sp
 | the Jon Snow validation case and the invalid cases | Part 4 |
 | failures, parsing, timeouts, rate limits, cost holes | Part 5 |
 | the look of a screen — frame, palette, type, tiles, buttons | the design canvas (all four screens, cast from the Jon Snow case): https://claude.ai/code/artifact/d7decf08-3027-4163-bab6-e03d67995478 — then Part 1 |
-| **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~70 KB, archive older months to `spec_logs_archive.md`. |
+| **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~150 KB, archive older months to `spec_logs_archive.md`. |
 
 ## Code conventions
 - Explicit, readable pipeline: `setup → statements → judging → aggregate`, one module each, framework-agnostic and unit-testable.
