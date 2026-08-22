@@ -1,0 +1,52 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 22px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-text);
+  font-size: var(--fs-md);
+  cursor: pointer;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.96);
+}
+
+/* The one primary action: glossy blue plate, gold inscriptional type. */
+.btn-primary {
+  padding: 13px 26px;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue-text);
+  background: var(--blue-plate);
+  border: 1px solid var(--blue-border);
+  box-shadow: var(--shadow-button);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Everything else: stone. */
+.btn-secondary {
+  color: var(--stone-text);
+  background: var(--stone-plate);
+  border: 1px solid var(--stone-border);
+  box-shadow: var(--shadow-button-stone);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Flat, for either variant: still there, still legible, plainly unavailable. */
+.btn:disabled {
+  color: var(--flat-text);
+  background: var(--flat);
+  border: 1px solid var(--flat-border);
+  box-shadow: none;
+  text-shadow: none;
+  cursor: not-allowed;
+}

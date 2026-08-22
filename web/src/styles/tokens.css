@@ -1,0 +1,287 @@
+/**
+ * tokens.css — the shared design system, transcribed from the design canvas.
+ *
+ * specs.md Part 1 describes the look in prose: "a bronze frame around a parchment sheet,
+ * a deep crimson plate for the masthead and for section bars, cream panels ruled in tan,
+ * inscriptional serif display type for the wordmark, headings and verdicts, and a single
+ * glossy blue plate for the one primary action a screen offers. It is built on shared
+ * design tokens so no screen drifts from the others."
+ *
+ * This file is that shared set, and it exists **before** any screen does, on purpose: the
+ * four screens were drawn together on one canvas, and a screen that reached for its own
+ * hex would be the first step back toward two products. Nothing below this file should
+ * contain a colour literal — if a value is missing here, add it here.
+ *
+ * Every value is lifted from the artboards rather than re-invented. The plan's Stage 6
+ * names one group of them explicitly (frame, sheet, crimson plate, panel, ink, verdict
+ * colours, blue and stone plates); the second group below is the supporting tones those
+ * artboards use alongside them, named here rather than left inline.
+ *
+ * **Three type families, and the third is not decoration.** Cinzel carries the wordmark,
+ * headings, verdicts and name plaques; EB Garamond carries everything meant to be read;
+ * and a monospace stack carries model identifiers, token counts and the call table — so
+ * that what came back from the API never looks hand-written. That distinction is the
+ * project's whole claim about its numbers, made visible.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- the frame: bronze, lit from the top ------------------------------------- */
+  --frame-1: #7a5c24;
+  --frame-2: #b8944a;
+  --frame-3: #8a6a2c;
+  --frame-edge: #5e451c;
+  --frame: linear-gradient(
+    180deg,
+    var(--frame-1) 0%,
+    var(--frame-2) 16%,
+    var(--frame-3) 50%,
+    var(--frame-2) 84%,
+    var(--frame-1) 100%
+  );
+
+  /* ---- the sheet: parchment, darker at the top edge where the frame casts on it -- */
+  --sheet-1: #d9be86;
+  --sheet-2: #efe4c0;
+  --sheet-3: #f9f3dc;
+  --sheet: linear-gradient(
+    180deg,
+    var(--sheet-1) 0%,
+    var(--sheet-2) 24%,
+    var(--sheet-3) 58%,
+    var(--sheet-3) 100%
+  );
+
+  /* ---- the crimson plate: masthead, and the bar over a framed section ------------ */
+  --crimson-1: #8e1c1c;
+  --crimson-2: #5f1010;
+  --crimson-3: #3f0a0a;
+  --crimson-plate: linear-gradient(
+    180deg,
+    var(--crimson-1) 0%,
+    var(--crimson-2) 55%,
+    var(--crimson-3) 100%
+  );
+  /* The section bar sits inside the sheet rather than above it, so it is lit a step up. */
+  --crimson-bar: linear-gradient(180deg, #a52424 0%, #7a1515 55%, #560d0d 100%);
+  --gold-rule: #d9b45f;
+
+  /* ---- panels and rules ---------------------------------------------------------- */
+  --panel: #faf4dd;
+  --panel-inset: #f3ead0;
+  --panel-raised: #f8f1da;
+  --highlight: #f6e6b8;
+  --border: #d9c9a3;
+  --hairline: #e2d5b2;
+  --border-strong: #cdb987;
+
+  /* ---- ink ----------------------------------------------------------------------- */
+  --ink: #3a2a17;
+  --muted: #6a5230;
+  --faint: #8a7550;
+  /* Cream that reads on a crimson or a stone plate. */
+  --ink-on-plate: #fdf3d2;
+  --ink-deep-crimson: #6d1414;
+
+  /* ---- the verdict colours, and gold --------------------------------------------- */
+  --guilty: #8e1c1c;
+  --acquitted: #2c7a3e;
+  --gold: #c9992f;
+  /* A count part-way to full, and the warning line that explains why Run is shut. */
+  --amber: #a8791a;
+  --amber-text: #8a6a1e;
+
+  /* ---- the one blue action a screen offers --------------------------------------- */
+  --blue-1: #3a7cbd;
+  --blue-2: #1b4f8a;
+  --blue-3: #0e2c4d;
+  --blue-plate: linear-gradient(180deg, var(--blue-1) 0%, var(--blue-2) 45%, var(--blue-3) 100%);
+  --blue-border: #7fb2e0;
+  --blue-text: #ffd97a;
+  --link: #1a5fa8;
+  --link-hover: #0e3f75;
+
+  /* ---- the stone plate: every secondary action ----------------------------------- */
+  --stone-1: #9a9082;
+  --stone-2: #6f665a;
+  --stone-3: #574f45;
+  --stone-plate: linear-gradient(180deg, var(--stone-1) 0%, var(--stone-2) 55%, var(--stone-3) 100%);
+  --stone-border: #b6ab99;
+  --stone-text: #f5efdc;
+
+  /* ---- flat: a control that is present and unavailable ---------------------------
+   * Dimmed rather than hidden, everywhere. A control that disappears takes its reason
+   * with it and shifts the layout on the way out; one that stays, greyed, says both what
+   * it would do and that it cannot. Side Select's arrows are the load-bearing case.
+   */
+  --flat: linear-gradient(180deg, var(--hairline), #cfbf98);
+  --flat-border: #c3b087;
+  --flat-text: #a89268;
+
+  /* ---- masthead detail ------------------------------------------------------------ */
+  --masthead-sub: #e6c3a4;
+  --rail-on: #ffe9a8;
+  --rail-off: #dbab8e;
+  --scales: #f0c96a;
+
+  /* ---- portrait frames ------------------------------------------------------------ */
+  --tile-border: #c3ab7d;
+  --tile-border-accused: #a5813a;
+  /* The track a Side Select card sits on. */
+  --track: linear-gradient(180deg, #f2e7c8 0%, #f7f0d8 45%, #f2e7c8 100%);
+  /* The word-count meter under the charge sheet. */
+  --meter-bg: #e0d3ae;
+  --meter-border: #d0bf94;
+  --meter-fill: linear-gradient(180deg, #b98b26, #8a6510);
+
+  /* ---- shadow, used sparingly ----------------------------------------------------- */
+  --shadow-sheet: inset 0 0 0 1px rgba(255, 241, 205, 0.45), 0 6px 22px rgba(0, 0, 0, 0.4);
+  --shadow-plate-lip: inset 0 1px 0 rgba(255, 220, 180, 0.28);
+  --shadow-panel-inset: inset 0 1px 3px rgba(120, 95, 55, 0.14);
+  --shadow-card: 0 2px 5px rgba(120, 95, 55, 0.18);
+  --shadow-button: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 2px 5px rgba(0, 0, 0, 0.35);
+  --shadow-button-stone: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 2px 5px rgba(0, 0, 0, 0.3);
+  --text-shadow-plate: 0 1px 2px rgba(0, 0, 0, 0.55);
+
+  /* ---- type ------------------------------------------------------------------------ */
+  --font-display: "Cinzel", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-text: "EB Garamond", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --fs-mono-xs: 10px;
+  --fs-mono-sm: 11px;
+  --fs-mono: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-body: 17px;
+  --fs-bar: 19px;
+  --fs-heading: 20px;
+  --fs-wordmark: 24px;
+
+  /* Letter-spacing is what makes the serif read as inscriptional rather than merely old. */
+  --track-wordmark: 0.28em;
+  --track-bar: 0.22em;
+  --track-label: 0.16em;
+  --track-plaque: 0.14em;
+  --track-mono: 0.14em;
+
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 5px;
+  --radius-tile: 9px;
+
+  --gutter: 40px;
+}
+
+/* Nothing on this page is a system font; the fallbacks are the closest old-style faces
+ * each platform ships, so a blocked webfont degrades rather than changes character. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: var(--frame-3);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* The three families as classes, so any element can be put in the right voice without a
+ * component existing for it. Used by every screen; matches the canvas's own convention. */
+.display {
+  font-family: var(--font-display);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* A section heading on the sheet: Cinzel, crimson, quiet. */
+.section-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-heading);
+  font-weight: 600;
+  color: var(--crimson-1);
+}
+
+/* Small mono caption — "choose one of five", "10 – 200 allowed". */
+.caption {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--faint);
+}
+
+/* Keyboard focus stays visible everywhere: the screens are specified to be operable by
+ * keyboard, and a focus ring removed for tidiness is the usual way that quietly stops
+ * being true. Gold rather than the browser default, so it belongs to the frame. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* specs.md Part 1: desktop-first, still usable down to a phone. */
+@media (max-width: 720px) {
+  :root {
+    --gutter: 18px;
+    --fs-wordmark: 19px;
+    --fs-heading: 18px;
+    --fs-body: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* The two states the app can be in before either screen exists: the server has not
+ * answered yet, or it cannot. Both are drawn inside the frame rather than as bare text,
+ * so the app never flashes an unstyled page on the way in. */
+.app-message {
+  display: flex;
+  flex-grow: 1;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px var(--gutter);
+}
+
+.app-message-panel {
+  max-width: 46em;
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-message-panel p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.app-loading {
+  color: var(--faint);
+  font-size: var(--fs-mono);
+}

@@ -1,0 +1,270 @@
+.sides {
+  display: flex;
+  flex-direction: column;
+  padding: 20px var(--gutter) 18px;
+  flex-grow: 1;
+}
+
+/* The track: one framed field the cards travel across, cut into the sheet. Its own border
+ * and inset shadow are what make a card's position read as a place rather than a column
+ * in a table. */
+.sides-track {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(120, 95, 55, 0.22);
+  background: var(--track);
+}
+
+/* ---- the three heads: counter, the accused, counter ---------------------------- */
+
+.sides-heads {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 26px 4px;
+}
+
+.sides-head {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sides-counter {
+  font-size: var(--fs-wordmark);
+  color: var(--amber);
+}
+
+.sides-counter.is-full {
+  color: var(--acquitted);
+}
+
+.sides-head-label {
+  font-size: 14px;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--crimson-1);
+}
+
+.sides-accused {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 15px 7px 8px;
+  border-radius: var(--radius);
+  background: var(--highlight);
+  border: 1px solid var(--border);
+}
+
+.sides-accused-label {
+  font-size: var(--fs-mono-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- the rows -------------------------------------------------------------------- */
+
+.sides-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-grow: 1;
+  justify-content: center;
+  /* Tight enough that four cards, the heads and the hint fit a laptop window without the
+   * body scrolling — the canvas fits all four at once and so should this. */
+  padding: 4px 26px 10px;
+}
+
+.sides-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Three equal columns per row, always. An empty one holds its width so a card's move is
+ * the only thing that changes when a side is chosen. */
+.sides-slot {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sides-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* An advocate still in the middle is raised off the track — the one card still asking for
+ * a decision. Padding here rather than on `.sides-card` so a placed card sits flush. */
+.sides-card-raised {
+  padding: 8px 14px;
+}
+
+.sides-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.sides-plaque {
+  font-size: var(--fs-mono);
+  letter-spacing: var(--track-plaque);
+  text-transform: uppercase;
+  color: var(--ink-deep-crimson);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 13px;
+  white-space: nowrap;
+}
+
+/* ---- the arrows ------------------------------------------------------------------ */
+
+.sides-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--blue-text);
+  background: var(--blue-plate);
+  border: 1px solid var(--blue-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: filter 120ms ease, transform 120ms ease;
+}
+
+.sides-arrow:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.sides-arrow:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Dimmed, never hidden: the layout does not move and the control still says what it would
+ * do. `opacity` on the whole button, as the canvas draws it. */
+.sides-arrow.is-blocked {
+  color: var(--faint);
+  background: var(--flat);
+  border-color: var(--flat-border);
+  box-shadow: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sides-hint {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+  text-align: center;
+}
+
+.sides-hint .mono {
+  font-size: var(--fs-mono-sm);
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+/* ---- the footer line ------------------------------------------------------------- */
+
+.sides-status {
+  font-size: var(--fs-md);
+}
+
+.sides-status.is-warning {
+  color: var(--amber-text);
+}
+
+.sides-status.is-ready {
+  color: var(--acquitted);
+}
+
+/* The Run button's reply this stage. Mono, because it is a note about the build rather
+ * than something the tribunal said. */
+.sides-note {
+  font-size: var(--fs-mono);
+  color: var(--muted);
+}
+
+/* ---- narrow ----------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .sides {
+    padding: 16px var(--gutter) 18px;
+  }
+
+  .sides-heads,
+  .sides-rows {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* The accused chip wraps to its own line under the two counters rather than sitting
+     between them, so the counters stay side by side and the track keeps its left-to-right
+     reading even where a card no longer travels across three columns. */
+  .sides-heads {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .sides-head-accused {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .sides-row,
+  .sides-heads {
+    gap: 8px;
+  }
+
+  .sides-arrow {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sides-card {
+    gap: 6px;
+  }
+
+  .sides-plaque {
+    font-size: var(--fs-mono-xs);
+    padding: 3px 7px;
+    letter-spacing: 0.08em;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Under this width three 70px cards plus four arrows cannot share a row, so the empty
+     slots collapse and each card holds the full width with its arrows at the edges. The
+     side is then read from the portrait's frame colour and the counters above. */
+  .sides-slot:empty {
+    display: none;
+  }
+
+  .sides-row {
+    justify-content: center;
+  }
+
+  .sides-slot {
+    flex: 1 1 100%;
+  }
+
+  .sides-card {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

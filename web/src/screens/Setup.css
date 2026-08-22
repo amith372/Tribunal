@@ -1,0 +1,364 @@
+/* Two columns on the canvas: the sheet and its pre-flight on the left, who is on trial
+ * and how the run is cast on the right. The right column is fixed-width because its
+ * content is a list of names and a list of identifiers, neither of which reads better
+ * wider; the charge sheet takes whatever is left. */
+.setup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 36px;
+  padding: 28px var(--gutter) 24px;
+  flex-grow: 1;
+}
+
+.setup-column {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+}
+
+.setup-column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-spaced {
+  margin-top: 8px;
+}
+
+/* ---- the charge sheet ---------------------------------------------------------- */
+
+.setup-sheet-panel {
+  padding: 0;
+  min-height: 220px;
+  display: flex;
+}
+
+/* The textarea is the parchment, not a control sitting on it: no border of its own, the
+ * panel's inset shadow is the edge. It is the only thing on the screen a user types into
+ * and it should feel like writing on the sheet. */
+.setup-sheet {
+  flex-grow: 1;
+  min-height: 220px;
+  padding: 22px 24px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: 1.75;
+  color: var(--ink);
+  resize: vertical;
+  text-wrap: pretty;
+}
+
+.setup-sheet:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--gold);
+  border-radius: var(--radius);
+}
+
+.setup-sheet::placeholder {
+  color: var(--faint);
+  font-style: italic;
+}
+
+.setup-counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setup-counter-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-count {
+  font-size: var(--fs-mono);
+  color: var(--ink);
+  background: var(--panel-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+}
+
+/* Over the ceiling or under the floor: the count itself turns, because it is the number
+ * the user is being asked to change. */
+.setup-count.is-over {
+  color: var(--ink-on-plate);
+  background: var(--guilty);
+  border-color: var(--crimson-2);
+}
+
+.setup-count-range {
+  font-size: var(--fs-mono);
+  color: var(--faint);
+}
+
+.setup-meter {
+  height: 6px;
+  width: 240px;
+  max-width: 40%;
+  background: var(--meter-bg);
+  border: 1px solid var(--meter-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.setup-meter-fill {
+  height: 100%;
+  background: var(--meter-fill);
+  transition: width 120ms ease;
+}
+
+.setup-meter-fill.is-over {
+  background: linear-gradient(180deg, var(--crimson-1), var(--crimson-2));
+}
+
+.setup-length-message {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--guilty);
+}
+
+/* ---- the pre-flight panel ------------------------------------------------------ */
+
+.setup-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.setup-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+
+.setup-check-mark {
+  flex-shrink: 0;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.setup-check.is-pass .setup-check-mark {
+  color: var(--acquitted);
+}
+
+.setup-check.is-fail .setup-check-mark {
+  color: var(--guilty);
+}
+
+.setup-check.is-pending .setup-check-mark {
+  color: #a89268;
+}
+
+.setup-check.is-pending .setup-check-text {
+  color: var(--muted);
+}
+
+.setup-check.is-fail .setup-check-text {
+  color: var(--guilty);
+}
+
+.setup-checks-note {
+  font-size: var(--fs-mono-sm);
+  color: var(--faint);
+  border-top: 1px solid var(--hairline);
+  padding-top: 9px;
+}
+
+/* ---- the defendant picker ------------------------------------------------------ */
+
+.setup-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-pick {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-family: var(--font-text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.setup-pick:hover:not(.is-chosen) {
+  background: var(--panel-inset);
+  border-color: var(--border-strong);
+}
+
+/* The accused: crimson-bordered on the highlight cream. One row can be in this state. */
+.setup-pick.is-chosen {
+  padding: 10px 13px;
+  border: 2px solid var(--crimson-1);
+  background: var(--highlight);
+  box-shadow: 0 1px 3px rgba(120, 60, 20, 0.2);
+}
+
+.setup-pick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.setup-pick-name {
+  font-size: var(--fs-body);
+}
+
+.setup-pick-name.is-chosen {
+  color: var(--ink-deep-crimson);
+}
+
+.setup-pick-blurb {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setup-pick-badge {
+  flex-shrink: 0;
+  font-size: var(--fs-mono-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-on-plate);
+  background: linear-gradient(180deg, #a52424, var(--ink-deep-crimson));
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+}
+
+/* ---- the mode toggle ----------------------------------------------------------- */
+
+.setup-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.setup-mode {
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-text);
+  font-size: var(--fs-md);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.setup-mode + .setup-mode {
+  border-left: 1px solid var(--border);
+}
+
+.setup-mode:hover:not(.is-chosen) {
+  background: rgba(243, 234, 208, 0.6);
+}
+
+/* Chosen reads as pressed in, which is the metaphor the rest of the sheet uses. */
+.setup-mode.is-chosen {
+  color: var(--ink);
+  background: var(--panel-inset);
+  font-weight: 600;
+  box-shadow: inset 0 1px 3px rgba(120, 95, 55, 0.18);
+}
+
+/* ---- the read-only model list --------------------------------------------------- */
+
+.setup-models {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-models-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setup-models-label {
+  font-size: var(--fs-mono-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.setup-models-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+/* Mono, because these came from the API and are not prose. Selectable but not editable —
+ * there is no input on this screen. */
+.setup-model {
+  font-size: var(--fs-mono-sm);
+  color: var(--muted);
+  background: var(--panel-inset);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+}
+
+.setup-models-fallback,
+.setup-models-loading {
+  font-size: var(--fs-mono-sm);
+  color: var(--faint);
+}
+
+.setup-models-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.setup-cost {
+  font-size: var(--fs-mono);
+  color: var(--muted);
+}
+
+/* ---- narrow ---------------------------------------------------------------------- */
+
+@media (max-width: 1080px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 900px) {
+  .setup {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    padding: 20px var(--gutter);
+  }
+
+  .setup-meter {
+    max-width: 50%;
+  }
+}

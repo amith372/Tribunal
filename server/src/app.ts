@@ -30,10 +30,24 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { getServerConfig, resolveRunModels, type Mode } from "./config.js";
+import {
+  ADVOCATE_SEATS,
+  FALLBACK_ROUTER,
+  getModelRegistry,
+  getServerConfig,
+  JUDGE_SEATS,
+  resolveRunModels,
+  type Mode,
+} from "./config.js";
 import type { TribunalData } from "./data.js";
 import { coldModels } from "./model-health.js";
-import { preflight } from "./preflight.js";
+import {
+  CHARGE_CUES,
+  MAX_CHARGE_SHEET_WORDS,
+  MIN_CHARGE_SHEET_WORDS,
+  preflight,
+  SEARCHED_NAMES,
+} from "./preflight.js";
 import { executeRun, type RunEmit } from "./run.js";
 import { RunBuffer } from "./run-buffer.js";
 import { appendRun } from "./runs-log.js";
@@ -83,15 +97,64 @@ export function createApp(options: AppOptions): Express {
   app.get("/api/health", (_req, res) => {
     res.json({
       ok: true,
-      characters: data.characters.map((c) => c.name),
+      // Objects rather than names since Stage 6: the Setup screen casts by `id`, shows the
+      // description under each portrait, and has no business inventing either. The five
+      // characters are read from `data/` here exactly as the pipeline reads them.
+      characters: data.characters.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description,
+      })),
       judges: data.judges.map((j) => j.name),
       relations: data.relations.length,
+      // The pre-flight's rules, so the Setup screen can show its checks passing as the user
+      // types without keeping a second copy of them. specs.md Part 1 leaves the server the
+      // authority; this only lets the client agree with it in advance instead of guessing.
+      preflight: {
+        minChargeSheetWords: MIN_CHARGE_SHEET_WORDS,
+        maxChargeSheetWords: MAX_CHARGE_SHEET_WORDS,
+        searchedNames: SEARCHED_NAMES,
+        chargeCues: CHARGE_CUES,
+      },
       apiKeyConfigured: getServerConfig().apiKey !== null,
       // A count, and nothing else. No run is browsable or queryable by design.
       runsHeld: buffer.size(),
       // Which models this process has found refusing, and why — the one piece of state
       // worth exposing, because it explains why a run cast the way it did.
       coldModels: coldModels(),
+    });
+  });
+
+  /**
+   * The models this server will use, read-only.
+   *
+   * specs.md Part 1: the identifiers are chosen by the developer, live server-side, and
+   * are never editable in the app. This endpoint is the *display* half of that rule and
+   * not a hole in it — the Setup screen names the models a run will draw from, and it
+   * names the ones this process actually holds, so changing a slot on the host changes
+   * what the screen says without an edit anywhere else. A screen that listed models from
+   * a copy of its own would go stale silently, which is the failure worth avoiding: a
+   * user reading a model name that is not the one being called.
+   *
+   * It is a GET that reads nothing at all — no query, no body, no header is consulted —
+   * so there is no field here through which a request could name a model. The registry it
+   * reports from is the same one `assertAllowedModel` enforces, and every identifier in
+   * it has already passed the free rule at startup.
+   */
+  app.get("/api/models", (_req, res) => {
+    const { solo, judgePool, advocatePool } = getModelRegistry();
+    res.json({
+      ok: true,
+      // Keyed by the two modes the toggle offers, because that is the only model-related
+      // choice the browser has — and it chooses a mode, never a model.
+      solo: { model: solo, seats: JUDGE_SEATS + ADVOCATE_SEATS },
+      perRole: {
+        judges: { seats: JUDGE_SEATS, pool: judgePool },
+        advocates: { seats: ADVOCATE_SEATS, pool: advocatePool },
+      },
+      // Named so the screen can say what a run falls back to, rather than the token table
+      // being the first place a reader meets it.
+      fallbackRouter: FALLBACK_ROUTER,
     });
   });
 

@@ -117,8 +117,13 @@ export const SEARCHED_NAMES: Record<string, readonly string[]> = {
  * is deliberately broad, and a question mark passes on its own: a valid charge sheet
  * wrongly refused costs the user a real run, while a vague one that slips through only
  * produces a weak trial. Leniency is the cheaper error here.
+ *
+ * It is exported because `/api/health` serves it to the browser: the Setup screen shows
+ * this check passing or failing as the user types, and a second copy of the list kept in
+ * the client would eventually disagree with this one — telling the user a sheet is fine
+ * that the server then refuses. The mirror reads the rule rather than remembering it.
  */
-const CHARGE_CUES: readonly string[] = [
+export const CHARGE_CUES: readonly string[] = [
   "accus", "alleg", "answerable", "arson", "assassinat", "betray", "breach", "bribe",
   "charg", "conspir", "convict", "crime", "criminal", "culpab", "defraud", "desert",
   "fraud", "guilt", "indict", "kidnap", "kill", "liable", "murder", "mutin", "oath",

@@ -1,0 +1,96 @@
+/* The bronze frame. On the canvas it is a fixed 1280 x 900 artboard; here it fills the
+ * window and holds the sheet at that width, so the drawn proportions survive on a laptop
+ * and the frame simply thickens on a wide display. */
+.app-frame {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 15px;
+  background: var(--frame);
+  display: flex;
+  justify-content: center;
+}
+
+.app-sheet {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  max-width: 1250px;
+  /* The window's height, not the content's: the footer holds the screen's one primary
+   * action and must never be below the fold. `dvh` where it exists, so a mobile browser's
+   * collapsing address bar does not crop the footer off. */
+  height: calc(100vh - 30px);
+  height: calc(100dvh - 30px);
+  min-height: 520px;
+  border: 2px solid var(--frame-edge);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--sheet);
+  box-shadow: var(--shadow-sheet);
+}
+
+/* Masthead and content. This is the part that scrolls when a screen has more than fits —
+ * the model list on Setup is the usual case. */
+.app-sheet-body {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The masthead stays put while the body under it scrolls, so the step rail — which is the
+ * only thing telling a user how far through a run they are — is always readable. */
+.app-sheet-body > .masthead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.app-sheet-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px var(--gutter);
+  border-top: 1px solid var(--border);
+  /* Deliberately translucent: the sheet's own gradient still shows through, so the band
+   * reads as part of the page rather than a strip laid on top of it. */
+  background: rgba(232, 220, 186, 0.75);
+}
+
+.app-sheet-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* A note under the actions — the Run button's "not built yet" reply lands here. */
+.app-sheet-footer-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .app-frame {
+    padding: 8px;
+  }
+
+  .app-sheet {
+    height: calc(100vh - 16px);
+    height: calc(100dvh - 16px);
+  }
+
+  .app-sheet-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .app-sheet-footer-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

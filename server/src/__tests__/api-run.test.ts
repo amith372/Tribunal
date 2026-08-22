@@ -18,6 +18,13 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { createApp, type AppOptions } from "../app.js";
+import { assertAllowedModel, FALLBACK_ROUTER, getModelRegistry } from "../config.js";
+import {
+  CHARGE_CUES,
+  MAX_CHARGE_SHEET_WORDS,
+  MIN_CHARGE_SHEET_WORDS,
+  SEARCHED_NAMES,
+} from "../preflight.js";
 import { loadData } from "../data.js";
 import { RunBuffer } from "../run-buffer.js";
 import type { CallOptions, CallResult } from "../openrouter.js";
@@ -369,6 +376,89 @@ describe("health", () => {
     expect(body.runsHeld).toBe(0);
     // A count and nothing more — no ids, no charge sheets, nothing browsable.
     expect(JSON.stringify(body)).not.toMatch(/chargeSheet/);
+
+    await stop();
+  });
+
+  it("carries the roster and the pre-flight's rules, so the setup screen mirrors rather than guesses", async () => {
+    const { url, stop } = await serve({ call: pacedCaller().call });
+
+    const body = (await (await fetch(`${url}/api/health`)).json()) as {
+      characters: { id: string; name: string; description: string }[];
+      preflight: {
+        minChargeSheetWords: number;
+        maxChargeSheetWords: number;
+        searchedNames: Record<string, string[]>;
+        chargeCues: string[];
+      };
+    };
+
+    // Cast by id, shown by name and description: all three come from `data/`.
+    expect(body.characters.map((c) => c.id)).toContain("jon-snow");
+    expect(body.characters.every((c) => c.name.length > 0 && c.description.length > 0)).toBe(true);
+
+    // The rules the client mirrors are the pre-flight's own, not a second copy of them.
+    expect(body.preflight.minChargeSheetWords).toBe(MIN_CHARGE_SHEET_WORDS);
+    expect(body.preflight.maxChargeSheetWords).toBe(MAX_CHARGE_SHEET_WORDS);
+    expect(body.preflight.searchedNames["jon-snow"]).toEqual(SEARCHED_NAMES["jon-snow"]);
+    expect(body.preflight.chargeCues).toEqual(CHARGE_CUES);
+
+    await stop();
+  });
+});
+
+describe("GET /api/models", () => {
+  it("reports the models this process holds, and every one of them is free", async () => {
+    const { url, stop } = await serve({ call: pacedCaller().call });
+
+    const body = (await (await fetch(`${url}/api/models`)).json()) as {
+      ok: boolean;
+      solo: { model: string; seats: number };
+      perRole: {
+        judges: { seats: number; pool: string[] };
+        advocates: { seats: number; pool: string[] };
+      };
+      fallbackRouter: string;
+    };
+    const registry = getModelRegistry();
+
+    expect(body.ok).toBe(true);
+    expect(body.solo.model).toBe(registry.solo);
+    expect(body.perRole.judges.pool).toEqual(registry.judgePool);
+    expect(body.perRole.advocates.pool).toEqual(registry.advocatePool);
+    expect(body.fallbackRouter).toBe(FALLBACK_ROUTER);
+
+    // Every pool is deeper than the seats it fills — specs.md Part 1 — and every
+    // identifier the browser is shown is one the guard would let through.
+    expect(body.perRole.judges.pool.length).toBeGreaterThan(body.perRole.judges.seats);
+    expect(body.perRole.advocates.pool.length).toBeGreaterThan(body.perRole.advocates.seats);
+    for (const id of [body.solo.model, ...body.perRole.judges.pool, ...body.perRole.advocates.pool]) {
+      expect(() => assertAllowedModel(id)).not.toThrow();
+    }
+
+    await stop();
+  });
+
+  it("is read-only: nothing it is sent can name a model", async () => {
+    const { url, stop } = await serve({ call: pacedCaller().call });
+
+    // A query string is the only input a GET has. It changes nothing, and the paid model
+    // named in it comes back nowhere in the answer.
+    const plain = await (await fetch(`${url}/api/models`)).text();
+    const injected = await (
+      await fetch(`${url}/api/models?model=openai/gpt-4o&solo=openai/gpt-4o`)
+    ).text();
+
+    expect(injected).toBe(plain);
+    expect(injected).not.toMatch(/gpt-4o/);
+
+    // And it is a GET: there is no POST /api/models to send a body to.
+    const posted = await fetch(`${url}/api/models`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ solo: "openai/gpt-4o" }),
+    });
+    expect(posted.status).toBe(404);
 
     await stop();
   });

@@ -1,0 +1,29 @@
+.character-tile {
+  display: block;
+  border-radius: var(--radius-tile);
+  background: var(--panel);
+  object-fit: cover;
+  /* The art is 256 px square; every use here is smaller, so it only ever downsamples. */
+  flex-shrink: 0;
+}
+
+.character-tile.tone-neutral {
+  border: 2px solid var(--tile-border);
+}
+
+/* The accused: a warmer, brighter frame on the highlight cream, so the one character who
+ * is not arguing is told apart from the four who are at a glance. */
+.character-tile.tone-accused {
+  border: 1.5px solid var(--tile-border-accused);
+  background: var(--highlight);
+}
+
+/* A side, in the verdict palette. Thicker than neutral: placement is the decision this
+ * screen exists to make, so a placed card should be readable across the room. */
+.character-tile.tone-defense {
+  border: 2.5px solid var(--acquitted);
+}
+
+.character-tile.tone-prosecution {
+  border: 2.5px solid var(--guilty);
+}

@@ -1,0 +1,93 @@
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 20px var(--gutter) 18px;
+  background: var(--crimson-plate);
+  border-bottom: 2px solid var(--gold-rule);
+  box-shadow: var(--shadow-plate-lip);
+}
+
+.masthead-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.masthead-scales {
+  color: var(--scales);
+  flex-shrink: 0;
+}
+
+.masthead-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.masthead-wordmark {
+  font-size: var(--fs-wordmark);
+  font-weight: 600;
+  letter-spacing: var(--track-wordmark);
+  text-transform: uppercase;
+  color: var(--ink-on-plate);
+  text-shadow: var(--text-shadow-plate);
+}
+
+.masthead-subtitle {
+  font-size: 14px;
+  color: var(--masthead-sub);
+}
+
+.masthead-rail {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-shrink: 0;
+}
+
+.masthead-step {
+  font-size: var(--fs-mono-sm);
+  letter-spacing: var(--track-mono);
+  text-transform: uppercase;
+  color: var(--rail-off);
+  /* The rule under the current step is drawn on every step, transparent until it is the
+   * current one, so nothing shifts by two pixels as the rail advances. */
+  padding-bottom: 5px;
+  border-bottom: 2px solid transparent;
+}
+
+.masthead-step.is-current {
+  color: var(--rail-on);
+  border-bottom-color: var(--scales);
+}
+
+@media (max-width: 980px) {
+  .masthead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .masthead-rail {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 720px) {
+  .masthead-subtitle {
+    font-size: var(--fs-sm);
+  }
+
+  .masthead-step {
+    font-size: var(--fs-mono-xs);
+    letter-spacing: 0.1em;
+  }
+}
