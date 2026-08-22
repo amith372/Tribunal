@@ -23,7 +23,8 @@
     "models:check": "npm run models:check -w server",
     "record:demo": "npm run record:demo -w server",
     "images:optimize": "tsx scripts/optimize-images.ts",
-    "trial:run": "npm run trial:run -w server --"
+    "trial:run": "npm run trial:run -w server --",
+    "gate:run": "npm run gate:run -w server --"
   },
   "engines": {
     "node": ">=20"

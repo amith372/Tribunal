@@ -16,7 +16,10 @@
  * were really spent and the results table has to be able to show them.
  */
 
+import { noteFailure, noteSuccess } from "./model-health.js";
 import {
+  EXCLUDED_MODELS,
+  MAX_ATTEMPTS_PER_CALL,
   ModelPolicyError,
   assertAllowedModel,
   getServerConfig,
@@ -25,15 +28,30 @@ import {
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-/** specs.md Part 5 warns a call may time out but sets no value; 60s per call. */
-export const DEFAULT_TIMEOUT_MS = 60_000;
+/**
+ * specs.md Part 5 warns a call may time out but sets no value.
+ *
+ * **Ninety seconds, raised from sixty on measurement.** Free models are slow: across three
+ * live runs the successful calls took up to 41 seconds, and one advocate was cut off at
+ * exactly 60 — not hung, just still writing. A timeout that fires on a model which was
+ * going to answer is the most expensive kind of failure there is, because it costs the
+ * wait *and* a retry, and the retry is usually just as slow. The ceiling is set above the
+ * slowest observed answer with room, so that what it catches is a model that has genuinely
+ * stopped rather than one that is merely deliberate.
+ */
+export const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**
- * At most two attempts per call, walking down the fallback chain. This bounds a run at
- * ~14 requests, inside OpenRouter's 20/min free limit, and bounds the worst case at
- * two waves x two attempts x 60s.
+ * At most three requests per logical call. This bounds a run at ~21 requests, inside
+ * OpenRouter's 20-per-minute free limit for the waves as they are actually issued, and
+ * bounds the worst case at two waves x three attempts x 60s.
+ *
+ * Where each request goes is not simply "the next model" — see `sameModelMayClear`.
+ *
+ * Defined in `config.ts` because `fallbackChainFor` must build a chain no longer than
+ * this, and that module cannot import this one without the two importing each other.
  */
-export const DEFAULT_MAX_ATTEMPTS = 2;
+export const DEFAULT_MAX_ATTEMPTS = MAX_ATTEMPTS_PER_CALL;
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -69,6 +87,21 @@ export interface OpenRouterUsage {
   completion_tokens_details?: { reasoning_tokens?: number };
 }
 
+/**
+ * The useful half of an error body. OpenRouter's own `message` is often just "Provider
+ * returned error"; what the failure actually *was* sits in `metadata`, which names the
+ * upstream provider and — for a 429 — whether the limit belongs to this account or to a
+ * pool shared with every other free user. Those are different problems with different
+ * answers, and the record should say which one it hit.
+ */
+export interface OpenRouterErrorMetadata {
+  /** The upstream provider's own message, e.g. "rate-limited upstream". */
+  raw?: string;
+  provider_name?: string;
+  /** e.g. `upstream_provider_shared_pool` — not this account's quota at all. */
+  limit_source?: string;
+}
+
 export interface OpenRouterResponse {
   id?: string;
   /** The model that actually served the call — `openrouter/free` resolves at call time. */
@@ -78,7 +111,7 @@ export interface OpenRouterResponse {
     finish_reason?: string | null;
   }>;
   usage?: OpenRouterUsage;
-  error?: { code?: number | string; message?: string };
+  error?: { code?: number | string; message?: string; metadata?: OpenRouterErrorMetadata };
 }
 
 export interface Usage {
@@ -117,6 +150,10 @@ export type ErrorKind =
   | "rate_limited"
   | "daily_limit"
   | "unauthorized"
+  /** This key may not use *this model* — the key itself is fine. Falls over. */
+  | "model_forbidden"
+  /** The router resolved to a model this app has measured and will not seat. */
+  | "model_excluded"
   | "model_unavailable"
   | "server_error"
   | "network"
@@ -143,6 +180,16 @@ export interface CallOptions {
   readonly temperature?: number;
   readonly timeoutMs?: number;
   readonly maxAttempts?: number;
+  /**
+   * How many requests this logical call has already made, when a caller re-enters with a
+   * fresh chain — a judge asking again at temperature 0, or an advocate re-asked after a
+   * refused reply. Both start a new walk, so without this their rows would restart at
+   * attempt 1 and report `isRetry: false`, and the token table would show a retry as if
+   * it were a first attempt. Measured live on 2026-08-22: a judge's three rows read 1, 2,
+   * 1. The count continues instead, which is what makes "every attempt is its own row,
+   * marked as a retry" true rather than nearly true.
+   */
+  readonly priorAttempts?: number;
 }
 
 export interface CallResult {
@@ -177,11 +224,13 @@ function readUsage(usage: OpenRouterUsage | undefined): Usage {
   };
 }
 
-/** Which failures are worth trying the next model in the chain for. */
+/** Which failures are worth spending another request on at all. */
 function isRetryable(kind: ErrorKind): boolean {
   return (
     kind === "timeout" ||
     kind === "rate_limited" ||
+    kind === "model_forbidden" ||
+    kind === "model_excluded" ||
     kind === "model_unavailable" ||
     kind === "server_error" ||
     kind === "network" ||
@@ -189,9 +238,44 @@ function isRetryable(kind: ErrorKind): boolean {
   );
 }
 
+/**
+ * Which failures are worth asking the *same* model about a second time.
+ *
+ * The four below are accidents of a moment — a request that took too long, a provider
+ * five-hundred, a connection that dropped, a body that came back malformed. Asking again
+ * is the cheapest thing that can clear them, and it keeps the role on the model it was
+ * cast with rather than spending a vetted spare on a hiccup.
+ *
+ * The others are not accidents. A rate limit that was hitting a second ago is hitting
+ * still — specs.md Part 5 makes exactly this argument about a judge's retry — and a
+ * delisted or gated model does not change its mind between two requests. Asking any of
+ * them again spends a request from an allowance rationed in requests to be told the same
+ * thing. Measured on 2026-08-22: all four failures in a seven-call run were of those kinds,
+ * so a blanket same-model retry would have cost four extra requests and bought nothing.
+ *
+ * **`bad_response` is excluded too, and that was learned the hard way.** A reply that
+ * arrived carrying no usable content is a disposition rather than a hiccup: it is how a
+ * particular model behaves on a particular kind of prompt. `statements.ts` already reasons
+ * this way about a reply that talks about the task instead of the case — "a behavioural
+ * tendency, and asking again mostly returns another one" — and the bench proved the same
+ * thing on 2026-08-22, when a model returned empty content twice in a row and burned the
+ * call's last attempt on a repeat instead of moving to a model that could answer.
+ */
+function sameModelMayClear(kind: ErrorKind): boolean {
+  return kind === "timeout" || kind === "server_error" || kind === "network";
+}
+
 function classifyStatus(status: number, message: string): ErrorKind {
-  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 401) return "unauthorized";
   if (status === 402) return "unauthorized";
+  // **403 is about the model, not the key.** A rejected key is a 401; a 403 means this
+  // key may not use this particular model — OpenRouter returns it for models gated to
+  // agentic harnesses, and for a moderation flag. Measured 2026-08-22: two models the
+  // public roster lists as free answered every request with "only available on agentic
+  // harnesses", and because a 403 was read as a bad key it was treated as fatal, so two
+  // roles died on the spot with vetted spares still untried and five other calls in the
+  // same run succeeding on the very same key. The key is not the problem; the model is.
+  if (status === 403) return "model_forbidden";
   if (status === 404) return "model_unavailable";
   if (status === 408) return "timeout";
   if (status === 429) {
@@ -212,6 +296,10 @@ function humanMessage(kind: ErrorKind, model: string, detail: string): string {
       return "OpenRouter's daily free-model limit has been reached. Free runs resume tomorrow.";
     case "rate_limited":
       return `${model} is rate-limited right now (${detail}).`;
+    case "model_forbidden":
+      return `This app is not permitted to use ${model} (${detail}). The API key is fine; the model is gated.`;
+    case "model_excluded":
+      return `The free router resolved to ${detail}, which this app does not seat. Moving on.`;
     case "model_unavailable":
       return `${model} is not available — it may have been delisted (${detail}).`;
     case "timeout":
@@ -223,6 +311,12 @@ function humanMessage(kind: ErrorKind, model: string, detail: string): string {
     case "bad_response":
       return `${model} returned a response this app could not read (${detail}).`;
   }
+}
+
+/** A timeout and a dropped connection look alike until you read the error's name. */
+function abortedKind(error: unknown): ErrorKind {
+  const name = (error as Error).name;
+  return name === "TimeoutError" || name === "AbortError" ? "timeout" : "network";
 }
 
 interface AttemptOutcome {
@@ -248,10 +342,11 @@ async function attemptOnce(
   };
   if (options.temperature !== undefined) body.temperature = options.temperature;
 
+  const prior = options.priorAttempts ?? 0;
   const base = {
     label: options.label,
-    attempt: index + 1,
-    isRetry: index > 0,
+    attempt: prior + index + 1,
+    isRetry: prior + index > 0,
     requestedModel: model,
   };
 
@@ -290,12 +385,27 @@ async function attemptOnce(
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
   } catch (error) {
-    const err = error as Error;
-    const kind: ErrorKind = err.name === "TimeoutError" || err.name === "AbortError" ? "timeout" : "network";
-    return fail(kind, err.message);
+    return fail(abortedKind(error), (error as Error).message);
   }
 
-  const text = await response.text();
+  /**
+   * **Reading the body is inside the timeout, so reading it can throw.** The abort signal
+   * covers the whole exchange, not just the headers, and a model that answers its headers
+   * quickly and then generates slowly hits the deadline here rather than above. This was
+   * unguarded until 2026-08-22, and the consequence was worse than a lost call: the throw
+   * escaped `attemptOnce` and `callChat` entirely, so the attempt never became a row in the
+   * token table, the failure never got an `ErrorKind`, and — because it was no longer an
+   * `OpenRouterError` — none of the retry logic above ever saw it. A run measured that day
+   * lost an advocate at exactly 60.1s to a single unretried attempt that the record could
+   * not account for.
+   */
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    return fail(abortedKind(error), (error as Error).message, { httpStatus: response.status });
+  }
+
   let parsed: OpenRouterResponse;
   try {
     parsed = JSON.parse(text) as OpenRouterResponse;
@@ -309,7 +419,16 @@ async function attemptOnce(
   const usage = readUsage(parsed.usage);
 
   if (!response.ok || parsed.error) {
-    const detail = parsed.error?.message ?? `HTTP ${response.status}`;
+    // Prefer what the upstream provider said over OpenRouter's generic wrapper, and name
+    // the provider — "rate-limited upstream in a shared pool" is a diagnosis, where
+    // "Provider returned error" is only an assertion that something went wrong.
+    const meta = parsed.error?.metadata;
+    const upstream = meta?.raw
+      ? `${meta.raw}${meta.provider_name ? ` [${meta.provider_name}` : ""}${
+          meta.provider_name && meta.limit_source ? `, ${meta.limit_source}` : ""
+        }${meta.provider_name ? "]" : ""}`
+      : null;
+    const detail = upstream ?? parsed.error?.message ?? `HTTP ${response.status}`;
     const status = response.ok ? Number(parsed.error?.code ?? 0) || 200 : response.status;
     return fail(classifyStatus(status, detail), detail, {
       httpStatus: response.status,
@@ -333,6 +452,20 @@ async function attemptOnce(
   // specs.md Part 5: the results report the model named in the response, never the one
   // requested — `openrouter/free` resolves to a different model at call time.
   const respondedModel = parsed.model ?? model;
+
+  // **The one guard that has to read the response rather than the request.** Everything
+  // else is checked before a request leaves, but the router is permitted by name and
+  // resolves to whatever it likes, so a model this app has measured and rejected can only
+  // be caught here. The request is already spent; what is refused is the seat.
+  const excluded = EXCLUDED_MODELS.get(respondedModel);
+  if (excluded) {
+    return fail("model_excluded", `${respondedModel} (${excluded})`, {
+      httpStatus: response.status,
+      raw: parsed,
+      usage,
+      respondedModel,
+    });
+  }
   const attempt: Attempt = {
     ...base,
     respondedModel,
@@ -375,21 +508,43 @@ export async function callChat(options: CallOptions): Promise<CallResult> {
   for (const model of options.models) assertAllowedModel(model);
 
   const apiKey = requireApiKey();
-  const limit = Math.min(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, options.models.length);
+  const limit = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const attempts: Attempt[] = [];
 
-  for (let i = 0; i < limit; i++) {
-    const model = options.models[i] as string;
-    const { attempt, result } = await attemptOnce(model, i, options, apiKey);
+  // **Where the next request goes depends on why the last one failed**, so the walk is a
+  // while loop over two counters rather than a for loop over the chain: `index` is which
+  // model, and `attempts.length` is how many requests have been spent. They are no longer
+  // the same number, because a transient failure buys one more ask of the same model.
+  let index = 0;
+  let repeated = false;
+
+  while (attempts.length < limit && index < options.models.length) {
+    const model = options.models[index] as string;
+    const { attempt, result } = await attemptOnce(model, attempts.length, options, apiKey);
     attempts.push(attempt);
 
-    if (result) return { ...result, attempts };
+    if (result) {
+      noteSuccess(model);
+      return { ...result, attempts };
+    }
 
     const kind = attempt.errorKind as ErrorKind;
+    // What this request just taught us about the model, so the rest of the run — and the
+    // next one — does not have to learn it again at a request apiece.
+    noteFailure(model, kind);
     // An auth failure or an exhausted daily quota will not resolve by trying another
     // free model, so stop rather than burning the rest of the chain.
     if (!isRetryable(kind)) {
       throw new OpenRouterError(attempt.errorMessage ?? "Model call failed.", kind, attempts);
+    }
+
+    if (sameModelMayClear(kind) && !repeated) {
+      // One more ask of the same model, and only one — a fault that survives a second
+      // request is not the momentary kind this exists for.
+      repeated = true;
+    } else {
+      index++;
+      repeated = false;
     }
   }
 

@@ -19,7 +19,8 @@
     "prompts:print": "tsx scripts/prompts-print.ts",
     "models:check": "tsx scripts/models-check.ts",
     "record:demo": "tsx scripts/record-demo.ts",
-    "trial:run": "tsx scripts/trial-run.ts"
+    "trial:run": "tsx scripts/trial-run.ts",
+    "gate:run": "tsx scripts/gate-run.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

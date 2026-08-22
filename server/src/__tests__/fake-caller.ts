@@ -18,7 +18,12 @@ const USAGE: Usage = {
   costUsd: 0,
 };
 
-export function fakeAttempt(label: string, model: string, ok = true): Attempt {
+export function fakeAttempt(
+  label: string,
+  model: string,
+  ok = true,
+  kind: ErrorKind = "server_error",
+): Attempt {
   return {
     label,
     attempt: 1,
@@ -28,7 +33,10 @@ export function fakeAttempt(label: string, model: string, ok = true): Attempt {
     ok,
     httpStatus: ok ? 200 : 503,
     finishReason: ok ? "stop" : null,
-    errorKind: ok ? null : "server_error",
+    // The kind is carried onto the row, as the real client does — a caller that reads
+    // the token table to tell a per-model 429 from the account's daily cap has to be
+    // able to see the difference here too.
+    errorKind: ok ? null : kind,
     errorMessage: ok ? null : "fake failure",
     usage: USAGE,
     elapsedMs: 1234,
@@ -51,7 +59,7 @@ export function fakeResult(options: CallOptions, text: string): CallResult {
 export function fakeError(options: CallOptions, kind: ErrorKind = "server_error"): OpenRouterError {
   const model = options.models[0] as string;
   return new OpenRouterError(`${options.label} failed after 2 attempt(s): fake failure`, kind, [
-    fakeAttempt(options.label, model, false),
+    fakeAttempt(options.label, model, false, kind),
   ]);
 }
 
@@ -89,6 +97,7 @@ const ERROR_KINDS: readonly string[] = [
   "rate_limited",
   "daily_limit",
   "unauthorized",
+  "model_forbidden",
   "model_unavailable",
   "server_error",
   "network",

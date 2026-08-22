@@ -203,3 +203,198 @@ describe("an error hiding inside a 200", () => {
     expect(error.attempts[0]?.httpStatus).toBe(200);
   });
 });
+
+/**
+ * **Where the next request goes depends on why the last one failed.**
+ *
+ * A run gets roughly fifty free requests a day and spends seven on a good one, so a
+ * wasted request is not free. Four of the seven seats failed in the live run of
+ * 2026-08-22 and every one of them was rate-limited or delisted — kinds where asking the
+ * same model again is guaranteed to be told the same thing. A timeout or a provider
+ * five-hundred is the opposite case: momentary, and the cheapest fix is to ask again.
+ */
+describe("choosing where the next request goes", () => {
+  /** The `model` each request actually named, in the order they were sent. */
+  const modelsAsked = (fetchMock: ReturnType<typeof vi.fn>): string[] =>
+    fetchMock.mock.calls.map(
+      (args) => (JSON.parse((args[1] as RequestInit).body as string) as { model: string }).model,
+    );
+
+  const threeDeep = (): string[] => {
+    const { judgePool } = getModelRegistry();
+    return [judgePool[0] as string, judgePool[1] as string, FALLBACK_ROUTER];
+  };
+
+  it("asks the same model again after a provider error, then moves on", async () => {
+    const models = threeDeep();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(500, errorBody("upstream exploded")))
+      .mockResolvedValueOnce(respond(500, errorBody("upstream exploded again")))
+      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await call(models);
+
+    // Own model twice, and only then the spare — the accident got its second chance
+    // before the role gave up the model it was cast with.
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0], models[1]]);
+    expect(result.attempts).toHaveLength(3);
+  });
+
+  it("asks the same model again after a timeout, and takes the answer", async () => {
+    const models = threeDeep();
+    const timeout = Object.assign(new Error("The operation timed out."), {
+      name: "TimeoutError",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce(respond(200, okBody(models[0] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await call(models);
+
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0]]);
+    expect(result.attempts[0]?.errorKind).toBe("timeout");
+    expect(result.model).toBe(models[0]);
+  });
+
+  it("never asks a rate-limited model again — it skips straight to the next", async () => {
+    const models = threeDeep();
+    const limited = errorBody("Rate limit exceeded: 20 requests per minute");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(429, limited))
+      .mockResolvedValueOnce(respond(429, limited))
+      .mockResolvedValueOnce(respond(200, okBody(models[2] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await call(models);
+
+    // Three different models, no repeats: a limit that was hitting a second ago is
+    // hitting still, so the second ask would spend a request to learn nothing.
+    expect(modelsAsked(fetchMock)).toEqual(models);
+  });
+
+  it("never asks a delisted model again either", async () => {
+    const models = threeDeep();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(404, { error: { message: "No endpoints found", code: 404 } }))
+      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await call(models);
+
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[1]]);
+  });
+
+  it("spends at most three requests however the failures fall", async () => {
+    const models = threeDeep();
+    // A fresh Response per call: a body can only be read once, so a single shared one
+    // would fail on the second request for a reason that has nothing to do with the code.
+    const fetchMock = vi.fn().mockImplementation(() => respond(500, errorBody("still broken")));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(call(models)).rejects.toBeInstanceOf(OpenRouterError);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives the same model at most one second ask, never two", async () => {
+    const models = threeDeep();
+    const fetchMock = vi.fn().mockImplementation(() => respond(500, errorBody("still broken")));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(call(models)).rejects.toBeInstanceOf(OpenRouterError);
+
+    // own, own, spare — a fault that survives a second request is not the momentary kind
+    // the repeat exists for, so the third request moves on rather than asking a third time.
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0], models[1]]);
+  });
+
+  it("still stops dead on the daily cap, without asking anything twice", async () => {
+    const models = threeDeep();
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => respond(429, errorBody("free-models-per-day limit reached")));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(call(models)).rejects.toMatchObject({ kind: "daily_limit" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The abort signal covers the whole exchange, so a model that answers its headers fast
+   * and then generates slowly hits the deadline while the *body* is being read. That read
+   * was unguarded until 2026-08-22, and the throw escaped the client entirely — no attempt
+   * row, no `ErrorKind`, and no retry, because what came out was not an `OpenRouterError`.
+   * A run lost an advocate to it at exactly 60.1s with nothing in the record to explain it.
+   */
+  it("records a timeout that lands while the body is being read, and retries it", async () => {
+    const models = threeDeep();
+    const slowBody = (): Response => {
+      const response = respond(200, okBody(models[0] as string));
+      Object.defineProperty(response, "text", {
+        value: () =>
+          Promise.reject(
+            Object.assign(new Error("The operation was aborted due to timeout"), {
+              name: "TimeoutError",
+            }),
+          ),
+      });
+      return response;
+    };
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(slowBody)
+      .mockImplementationOnce(() => respond(200, okBody(models[0] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await call(models);
+
+    // The lost attempt is a row like any other, classified, and it bought the same-model
+    // retry that a timeout is supposed to buy.
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts[0]?.errorKind).toBe("timeout");
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0]]);
+  });
+
+  it("moves to the next model when a reply arrives carrying nothing", async () => {
+    const models = threeDeep();
+    const empty = (model: string) => ({
+      model,
+      choices: [{ message: { content: "" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 0, total_tokens: 10, cost: 0 },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => respond(200, empty(models[0] as string)))
+      .mockImplementationOnce(() => respond(200, okBody(models[1] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await call(models);
+
+    // Empty content is how a model behaves on a prompt, not a hiccup it recovers from —
+    // measured 2026-08-22, when one returned nothing twice and burned the call's last
+    // attempt on the repeat instead of reaching a model that could answer.
+    expect(result.attempts[0]?.errorKind).toBe("bad_response");
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[1]]);
+  });
+
+  it("marks every request after the first as a retry, numbered in sequence", async () => {
+    const models = threeDeep();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(500, errorBody("upstream exploded")))
+      .mockResolvedValueOnce(respond(500, errorBody("upstream exploded again")))
+      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await call(models);
+
+    // The token table has to be able to show a retry as a retry (Part 2's "real numbers").
+    expect(result.attempts.map((a) => a.attempt)).toEqual([1, 2, 3]);
+    expect(result.attempts.map((a) => a.isRetry)).toEqual([false, true, true]);
+  });
+});

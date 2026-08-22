@@ -24,6 +24,7 @@
  */
 
 import { fallbackChainFor, type Mode } from "./config.js";
+import { warmFirst } from "./model-health.js";
 import type { TribunalData } from "./data.js";
 import {
   OpenRouterError,
@@ -76,7 +77,15 @@ export interface StatementOutcome {
   readonly attempts: readonly Attempt[];
 }
 
-export type AbortReason = "no_statements" | "side_silenced";
+/**
+ * Why a run stopped before the bench heard it.
+ *
+ * The first two are decided in this module, from the wave itself. The last two are
+ * decided a level up in `run.ts`, which is the only place that knows about the clock and
+ * about the account-wide daily allowance — but they are the same kind of fact and belong
+ * in the same type, so the record has one place to say why judging never happened.
+ */
+export type AbortReason = "no_statements" | "side_silenced" | "daily_limit" | "run_timeout";
 
 export interface StatementsAbort {
   readonly reason: AbortReason;
@@ -166,11 +175,16 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
           // same model did it again in the next run. So the model that produced the
           // refused text is dropped from the chain for the second ask.
           const refused = result.attempts.filter((a) => a.ok).at(-1)?.requestedModel;
-          const remaining = request.models.filter((model) => model !== refused);
+          // Warm-first, because the chain was ordered before this call made any requests.
+          // Measured 2026-08-22: a re-ask walked back onto a model the same call had found
+          // rate-limited forty seconds earlier, and spent a request to be refused again.
+          const remaining = warmFirst(request.models.filter((model) => model !== refused));
           const second = await call({
             ...request,
             models: remaining.length > 0 ? remaining : request.models,
             temperature: 0,
+            // Continues this call's numbering, so the re-ask is a marked retry row.
+            priorAttempts: attempts.length,
           });
           attempts.push(...second.attempts);
           const secondScreen = checkStatement(second.text, second.finishReason);

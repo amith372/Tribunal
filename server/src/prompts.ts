@@ -45,6 +45,18 @@ import type { CastAdvocate, Side, ValidRun } from "./preflight.js";
  * breach becomes a real outlier worth flagging rather than the ordinary case.
  */
 export const ADVOCATE_WORD_CAP = 150;
+
+/**
+ * The word cap restated as sentences, because **a model cannot count its own words and can
+ * count sentences.** Measured 2026-08-22 at the 150 cap: 232 words and 164 words in one
+ * run, and 175 in the run before — the overrun ratio held almost exactly steady across the
+ * raise from 120 (+18%) to 150 (+17%), which is the sign that the number was never the
+ * lever. So the number stays and the *instruction* changes: the limit is stated as a hard
+ * one rather than hedged, given a shape the model can actually hold itself to, and repeated
+ * in the user turn — the last thing read before generation, where a mid-system-prompt
+ * bullet has the least pull.
+ */
+export const ADVOCATE_SENTENCES = "8 to 10";
 /**
  * Headroom above the cap — sized for the model's *thinking plus* its answer, not for
  * the answer alone (specs.md Part 5). A reasoning model that is cut off mid-thought
@@ -72,6 +84,9 @@ export const ADVOCATE_MAX_TOKENS = 3000;
  * them all.
  */
 export const JUDGE_WORD_CAP = 120;
+
+/** The judge's cap as sentences — see `ADVOCATE_SENTENCES` for why both forms are given. */
+export const JUDGE_SENTENCES = "6 to 8";
 /**
  * Headroom above the cap, above the JSON wrapper the reply carries, and — as with the
  * advocates — above the model's thinking (specs.md Part 5).
@@ -224,8 +239,10 @@ export function buildAdvocatePrompt(
     "  · One statement to the tribunal, first person, in your own voice.",
     "  · Prose only. No headings, no bullet points, no stage directions, no labels, and",
     "    no quotation marks around the whole thing.",
-    `  · At most ${ADVOCATE_WORD_CAP} words. Fewer is perfectly good — if your way is to be spare, be`,
-    "    spare and stop. There is no minimum.",
+    `  · **Hard limit: ${ADVOCATE_WORD_CAP} words.** Around ${ADVOCATE_SENTENCES} sentences. Going over is a failure of`,
+    "    the brief, not a fuller argument — the tribunal hears every advocate at the same",
+    "    length or it is not hearing them evenly. Fewer is perfectly good: if your way is",
+    "    to be spare, be spare and stop. There is no minimum.",
     "  · Speak only for yourself. Do not write another advocate's part, do not invent",
     "    their argument, and do not address the other side as if they were present.",
     "  · Give the statement and nothing else — no preamble, no sign-off, no commentary",
@@ -236,6 +253,7 @@ export function buildAdvocatePrompt(
     chargeSheetBlock(run.chargeSheet),
     "",
     `${speaker.name}, make your statement ${SIDE_VERB[advocate.side]} ${defendant.name}.`,
+    `Remember: ${ADVOCATE_WORD_CAP} words at the very most, about ${ADVOCATE_SENTENCES} sentences. Stop when you have said it.`,
   ].join("\n");
 
   return {
@@ -335,6 +353,7 @@ export function buildJudgePrompt(
     statementsBlock(statements, run.advocates.length),
     "",
     `${judge.name}, give your verdict on ${run.defendant.name} and your reasoning, as the single JSON object described.`,
+    `Remember: the reasoning is ${JUDGE_WORD_CAP} words at the very most, about ${JUDGE_SENTENCES} sentences.`,
   ].join("\n");
 
   return {

@@ -13,6 +13,7 @@ import { loadData } from "../data.js";
 import { preflight, type ValidRun } from "../preflight.js";
 import {
   ADVOCATE_MAX_TOKENS,
+  ADVOCATE_SENTENCES,
   ADVOCATE_WORD_CAP,
   JUDGE_MAX_TOKENS,
   JUDGE_WORD_CAP,
@@ -195,15 +196,29 @@ describe("an advocate's prompt", () => {
     }
   });
 
-  it("states the 120-word cap as a maximum with no minimum", () => {
+  it("states the word cap as a hard maximum, in words and in sentences, with no minimum", () => {
     for (const advocate of advocates) {
       const prompt = buildAdvocatePrompt(run, advocate, data);
       expect(prompt.wordCap).toBe(ADVOCATE_WORD_CAP);
       expect(prompt.maxTokens).toBe(ADVOCATE_MAX_TOKENS);
-      expect(text(prompt)).toContain(`At most ${ADVOCATE_WORD_CAP} words`);
+      expect(text(prompt)).toContain(`Hard limit: ${ADVOCATE_WORD_CAP} words`);
+      // A model cannot count its own words but can count sentences, so the cap is given
+      // in both forms — see ADVOCATE_SENTENCES for the measurements behind that.
+      expect(text(prompt)).toContain(ADVOCATE_SENTENCES);
       // Grey Worm has "no taste for rhetoric" — a faithful 20-word statement is the
       // persona working, not a failed call.
       expect(text(prompt)).toContain("There is no minimum.");
+    }
+  });
+
+  it("repeats the limit in the user turn, where it is read last", () => {
+    // Measured 2026-08-22: statements ran to 232 and 164 words against a 150 cap stated
+    // once, mid-way through a long system prompt. The last instruction before generation
+    // is the one with the most pull, and it said nothing about length.
+    for (const advocate of advocates) {
+      const prompt = buildAdvocatePrompt(run, advocate, data);
+      const userTurn = prompt.messages[prompt.messages.length - 1]?.content as string;
+      expect(userTurn).toContain(`${ADVOCATE_WORD_CAP} words at the very most`);
     }
   });
 });

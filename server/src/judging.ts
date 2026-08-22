@@ -129,7 +129,11 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
           messages: prompt.messages,
           maxTokens: prompt.maxTokens,
           label: prompt.label,
-          ...(retry ? { temperature: 0, maxAttempts: 1 } : {}),
+          // `priorAttempts` continues the numbering, so the retry reads as the third row
+          // of one call rather than the first row of a second one.
+          ...(retry
+            ? { temperature: 0, maxAttempts: 1, priorAttempts: attempts.length }
+            : {}),
         });
 
       let outcome: JudgeOutcome;

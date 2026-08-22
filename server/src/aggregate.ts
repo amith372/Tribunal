@@ -68,6 +68,24 @@ export interface ModelCollision {
   readonly roles: readonly string[];
 }
 
+/**
+ * Two judges that answered on models from the same maker.
+ *
+ * The casting never does this and the fallback avoids it, but the free roster is thin
+ * enough that a judge whose model fails may have nothing left but a model sharing a maker
+ * with a sibling — and taking it is better than an unvetted model off the router or an
+ * empty seat. What makes that acceptable is that it is *said*. Two judges built from shared
+ * weights can agree for reasons that are not judicial, and with a majority of three such a
+ * pair decides the verdict; a reader who can see it happened can weigh the verdict knowing
+ * that. A reader who cannot is being told three independent judges agreed when they may not
+ * have been three.
+ */
+export interface LineageCollision {
+  /** The maker both seats ended up on, e.g. `nvidia`. */
+  readonly maker: string;
+  readonly judges: readonly string[];
+}
+
 export interface RunRecord {
   readonly chargeSheet: string;
   readonly chargeSheetWords: number;
@@ -84,6 +102,8 @@ export interface RunRecord {
   /** All four statements arrived and all three judges ruled. */
   readonly complete: boolean;
   readonly collisions: readonly ModelCollision[];
+  /** Judges that answered on one maker — empty on almost every run (Part 1). */
+  readonly benchLineage: readonly LineageCollision[];
   readonly startedAt: string;
   readonly finishedAt: string;
 }
@@ -187,6 +207,27 @@ function collisionsOf(
     .map(([model, roles]) => ({ model, roles }));
 }
 
+/** The maker half of an identifier — `nvidia` in `nvidia/nemotron-3-nano-30b-a3b:free`. */
+function makerOf(model: string): string {
+  return model.split("/")[0] as string;
+}
+
+/**
+ * Judges sharing a maker. Read from the model that *answered*, never the one requested —
+ * a fallback is exactly how this arises, so asking what was requested would miss it.
+ */
+function lineageOf(judges: readonly JudgeOutcome[]): LineageCollision[] {
+  const byMaker = new Map<string, string[]>();
+  for (const judge of judges) {
+    if (!judge.model) continue;
+    const maker = makerOf(judge.model);
+    byMaker.set(maker, [...(byMaker.get(maker) ?? []), judge.judgeId]);
+  }
+  return [...byMaker.entries()]
+    .filter(([, seats]) => seats.length > 1)
+    .map(([maker, seats]) => ({ maker, judges: seats }));
+}
+
 /** Folds a finished run into the one object every renderer reads. */
 export function aggregate(input: AggregateInput): RunRecord {
   const { run, models, statements, startedAt, finishedAt } = input;
@@ -212,6 +253,7 @@ export function aggregate(input: AggregateInput): RunRecord {
     totals: sumUsage(attempts),
     complete: statements.complete && judges.length > 0 && tally.failed === 0,
     collisions: collisionsOf(statements.statements, judges),
+    benchLineage: lineageOf(judges),
     startedAt: startedAt.toISOString(),
     finishedAt: finishedAt.toISOString(),
   };
