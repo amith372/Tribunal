@@ -301,7 +301,7 @@ function partialStatements(
   const statements = run.advocates.map(
     (advocate, index) =>
       byId.get(advocate.character.id) ??
-      unreportedStatement(advocate, models.advocates[index] as string, TIMEOUT_MESSAGE),
+      unreportedStatement(advocate, models.advocates[index], TIMEOUT_MESSAGE),
   );
   const delivered = statements.filter((statement) => statement.ok);
   return {
@@ -321,6 +321,6 @@ function partialJudges(
   const byId = new Map(seen.map((judge) => [judge.judgeId, judge]));
   return data.judges.map(
     (judge, index) =>
-      byId.get(judge.id) ?? unreportedJudge(judge, models.judges[index] as string, TIMEOUT_MESSAGE),
+      byId.get(judge.id) ?? unreportedJudge(judge, models.judges[index], TIMEOUT_MESSAGE),
   );
 }

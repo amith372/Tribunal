@@ -221,7 +221,7 @@ function report(frames: Frame[]): void {
 
   // The lump test: if every event landed at nearly the same moment, the stream was
   // buffered somewhere, however correct its contents.
-  const gaps = frames.slice(1).map((frame, i) => frame.atMs - (frames[i] as Frame).atMs);
+  const gaps = frames.slice(1).map((frame, i) => frame.atMs - (frames[i]).atMs);
   const largest = gaps.length > 0 ? Math.max(...gaps) : 0;
   line(
     largest >= 1000,

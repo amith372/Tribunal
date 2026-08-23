@@ -11,8 +11,6 @@ import type {
   Attempt,
   Character,
   JudgeView,
-  PreflightEvent,
-  PreflightFailure,
   RunRecordView,
   RunRequest,
   Side,

@@ -217,7 +217,7 @@ describe("an advocate's prompt", () => {
     // is the one with the most pull, and it said nothing about length.
     for (const advocate of advocates) {
       const prompt = buildAdvocatePrompt(run, advocate, data);
-      const userTurn = prompt.messages[prompt.messages.length - 1]?.content as string;
+      const userTurn = prompt.messages[prompt.messages.length - 1]?.content;
       expect(userTurn).toContain(`${ADVOCATE_WORD_CAP} words at the very most`);
     }
   });

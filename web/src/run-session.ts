@@ -30,7 +30,7 @@ import type {
   StatementView,
 } from "./api.js";
 import { openRunStream, type RunSource, type StreamPhase } from "./run-stream.js";
-import { rememberRun } from "./run-memory.js";
+import { rememberRun, rememberedRun } from "./run-memory.js";
 
 export interface RunSnapshot {
   /** The casting and the bench, before a single model was asked anything. */
@@ -144,4 +144,27 @@ export function startRunSession(source: RunSource): RunSession {
       close();
     },
   };
+}
+
+/**
+ * The run this page load inherited, if there is one.
+ *
+ * A refresh mid-trial would otherwise throw away seven requests and immediately spend
+ * seven more, so a run id parked by a previous load is rejoined instead of re-run.
+ *
+ * **Resolved once, at module scope, and deliberately not in an effect.** React runs effects
+ * and state initialisers twice in development to surface work that is not idempotent, and
+ * opening a stream is exactly that kind of work — twice would mean two streams, one of them
+ * reading with nobody watching. Memoising here makes the question safe to ask as many times
+ * as React likes, which is what lets the app read it as an initial value rather than
+ * assigning it from an effect afterwards.
+ */
+let inherited: RunSession | null | undefined;
+
+export function inheritedRunSession(): RunSession | null {
+  if (inherited === undefined) {
+    const runId = rememberedRun();
+    inherited = runId === null ? null : startRunSession({ kind: "rejoin", runId });
+  }
+  return inherited;
 }

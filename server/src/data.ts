@@ -246,8 +246,8 @@ function assertEveryPairCovered(
   const missing: string[] = [];
   for (let i = 0; i < characterIds.length; i++) {
     for (let j = i + 1; j < characterIds.length; j++) {
-      const a = characterIds[i] as string;
-      const b = characterIds[j] as string;
+      const a = characterIds[i];
+      const b = characterIds[j];
       const count = have.get(key(a, b)) ?? 0;
       if (count === 0) missing.push(`${a} ↔ ${b}`);
       if (count > 1) throw new DataError(`Relation "${a} ↔ ${b}" is defined ${count} times.`, file);

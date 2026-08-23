@@ -227,9 +227,9 @@ describe("a run the pre-flight passes", () => {
     const { url, stop } = await serve({ call: pacedCaller(40).call });
     const frames = await runToCompletion(url);
 
-    const preflightAt = frames[0]?.atMs as number;
-    const firstStatementAt = frames[1]?.atMs as number;
-    const firstJudgeAt = frames[5]?.atMs as number;
+    const preflightAt = frames[0]?.atMs;
+    const firstStatementAt = frames[1]?.atMs;
+    const firstJudgeAt = frames[5]?.atMs;
     const doneAt = frames.at(-1)?.atMs as number;
 
     // The casting is on screen before any model has answered.
@@ -299,7 +299,7 @@ describe("a browser that lets go of a run", () => {
     const reader = (response.body as ReadableStream<Uint8Array>).getReader();
     const first = new TextDecoder().decode((await reader.read()).value);
     expect(first).toMatch(/event: preflight/);
-    const runId = (JSON.parse(first.split("data: ")[1]?.split("\n")[0] as string) as { runId: string })
+    const runId = (JSON.parse(first.split("data: ")[1]?.split("\n")[0]) as { runId: string })
       .runId;
     controller.abort();
     await reader.cancel().catch(() => {});

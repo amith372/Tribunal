@@ -301,7 +301,7 @@ export function assertAllowedModel(id: string): void {
 
 /** The maker half of an identifier — `nvidia` in `nvidia/nemotron-3-nano-30b-a3b:free`. */
 function providerOf(id: string): string {
-  return id.split("/")[0] as string;
+  return id.split("/")[0];
 }
 
 /**
@@ -338,7 +338,7 @@ function assignSpares(
       if (current.size > best.size) best = new Map(current);
       return;
     }
-    const seat = seats[index] as string;
+    const seat = seats[index];
     for (const model of options.get(seat) ?? []) {
       if (used.has(model)) continue;
       used.add(model);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppFrame } from "./components/AppFrame.js";
 import { Masthead } from "./components/Masthead.js";
@@ -15,8 +15,8 @@ import {
   type RunRequest,
   type Side,
 } from "./api.js";
-import { rememberRun, rememberedRun } from "./run-memory.js";
-import { startRunSession, type RunSession } from "./run-session.js";
+import { rememberRun } from "./run-memory.js";
+import { inheritedRunSession, startRunSession, type RunSession } from "./run-session.js";
 import { advocatesOf, chargeIsReady, type SetupDraft } from "./preflight-mirror.js";
 import "./styles/tokens.css";
 
@@ -51,12 +51,24 @@ export function App() {
   const [models, setModels] = useState<ModelsView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [screen, setScreen] = useState<Screen>("setup");
+  /**
+   * A run left behind by a previous page load is rejoined rather than re-run — resolved
+   * before the first render rather than assigned from an effect afterwards, so the app
+   * never draws a charge sheet for a moment and then jumps to a trial already in progress.
+   * `inheritedRunSession` memoises, so asking twice costs nothing and opens nothing twice.
+   */
+  const [screen, setScreen] = useState<Screen>(() =>
+    inheritedRunSession() === null ? "setup" : "run",
+  );
   const [mode, setMode] = useState<Mode>("per-role");
   const [chargeSheet, setChargeSheet] = useState("");
   const [defendantId, setDefendantId] = useState<string | null>(null);
   const [sides, setSides] = useState<Record<string, Side | null>>({});
-  const [run, setRun] = useState<ActiveRun | null>(null);
+  const [run, setRun] = useState<ActiveRun | null>(() => {
+    const session = inheritedRunSession();
+    // No request: that run was posted in a page load this one knows nothing about.
+    return session === null ? null : { session, request: null };
+  });
 
   useEffect(() => {
     // The roster and the pre-flight's rules are needed before anything can be drawn; the
@@ -65,28 +77,6 @@ export function App() {
     getModels()
       .then(setModels)
       .catch(() => setModels(null));
-  }, []);
-
-  /**
-   * A run left behind by a previous page load is rejoined rather than re-run.
-   *
-   * A refresh in the middle of a trial would otherwise throw away seven requests and start
-   * seven more. The server holds the run by its id for ten minutes after it ends, so the
-   * id parked in `sessionStorage` is enough to walk back into it — and if the buffer has
-   * already let it go, the trial screen says so and offers the way back to the charge.
-   */
-  const rejoinChecked = useRef(false);
-  useEffect(() => {
-    // Once per page load, latched rather than left to the effect's own discipline: this
-    // runs twice in development, and a second session would leave one stream reading with
-    // nobody watching it. Rejoining costs no request either way — the tidiness is the point.
-    if (rejoinChecked.current) return;
-    rejoinChecked.current = true;
-
-    const runId = rememberedRun();
-    if (runId === null) return;
-    setRun({ session: startRunSession({ kind: "rejoin", runId }), request: null });
-    setScreen("run");
   }, []);
 
   if (error !== null) {
@@ -177,7 +167,7 @@ export function App() {
             // model field here, and there is nowhere in the app to type one.
             advocates: advocates.map((advocate) => ({
               id: advocate.id,
-              side: (sides[advocate.id] ?? "for") as Side,
+              side: (sides[advocate.id] ?? "for"),
             })),
             mode,
           };

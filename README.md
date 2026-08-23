@@ -18,6 +18,7 @@ run record.**
 
 ```
 npm install
+npm run hooks     # one-off per clone: enables the pre-commit gate in .githooks/
 npm run dev
 ```
 
@@ -26,12 +27,28 @@ it. `http://localhost:5173/api/health` should report five character names and th
 judge names read from `data/`.
 
 ```
-npm test           # Vitest, server-side
+npm test              # Vitest, server-side
+npm run lint          # ESLint, type-aware, whole repo
+npm run typecheck     # tsc across all four tsconfigs
+npm run rehearse      # a whole run streamed with the model call faked — costs no requests
 npm run models:check  # are the pinned free models still live?
 npm run record:demo   # print a finished run record and write a sample export, no calls spent
 npm run build   # web → web/dist, server → server/dist
 npm start       # one process serving both, http://localhost:3001
 ```
+
+### The commit gate
+
+`.githooks/pre-commit` runs on every commit and refuses one that would leak an API key,
+write a model identifier into `web/src`, or fail typecheck, lint or tests. It takes about
+thirteen seconds. It lives in the repo rather than in `.git/hooks` so it can be read and
+reviewed like anything else — but git does not enable a hooks directory on clone, so
+`npm run hooks` is a one-off step per checkout.
+
+A run costs seven OpenRouter requests out of a free daily allowance of roughly fifty.
+`npm run rehearse` streams a complete run with the model call replaced by a timed fake, so
+the interface can be built and watched for nothing; `-- fail` fails one advocate, `-- hung`
+splits the bench, `-- fast` runs at four times the speed.
 
 ## Configuration
 

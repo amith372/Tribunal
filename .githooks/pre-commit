@@ -1,0 +1,83 @@
+#!/bin/sh
+#
+# pre-commit — the gate that needs nobody present.
+#
+# Every check in this project's stage gate has so far been discipline: run the tests,
+# check the spec, then commit. Discipline has held, but the day it does not is the day it
+# was guarding — a late hour, a small fix, "I will run them after". So the checks that
+# need no judgement run here instead, and a commit that fails them does not happen.
+#
+# The order is cheapest-first, so a secret or a leaked model identifier is caught in
+# milliseconds rather than after a minute of typechecking.
+#
+#   1. secrets      — a committed key is exposed for the project's life; history is
+#                     permanent and deleting it later does not help.
+#   2. model ids    — specs.md Part 1: the identifiers live server-side and the browser
+#                     never receives or sends one. This is that non-negotiable, enforced.
+#   3. typecheck    — catches wrong kinds.
+#   4. lint         — catches dangerous patterns without running anything.
+#   5. tests        — catches behaviour.
+#
+# Install once per clone:  git config core.hooksPath .githooks
+# It lives in the repo rather than in .git/hooks so it can be read, reviewed and cloned.
+# Bypassing it is `git commit --no-verify`, which is deliberately not aliased anywhere.
+
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail() {
+  echo ""
+  echo "  ✗ pre-commit: $1"
+  echo ""
+  exit 1
+}
+
+# ---- 1. secrets ---------------------------------------------------------------------
+# Shaped to real key entropy rather than to the word "key", so there is no allowlist to
+# rot. A test fixture like "sk-or-v1-test-key-not-real" is short and hyphenated and does
+# not match; a real 64-character OpenRouter key does.
+secret_re='sk-or-v1-[A-Za-z0-9]{40,}|sk-ant-[A-Za-z0-9_-]{40,}|sk-proj-[A-Za-z0-9_-]{40,}|gh[pousr]_[A-Za-z0-9]{36,}|AKIA[0-9A-Z]{16}'
+
+for file in $staged; do
+  case "$file" in
+    .env|.env.*)
+      fail "$file is staged. Environment files hold the API key and are never committed." ;;
+  esac
+done
+
+if git diff --cached -U0 | grep -nE "^\+.*($secret_re)" >/dev/null 2>&1; then
+  echo ""
+  echo "  A staged line looks like a live credential:"
+  git diff --cached -U0 | grep -nE "^\+.*($secret_re)" | head -5
+  fail "treat that key as compromised and rotate it, then remove it from the change."
+fi
+
+# ---- 2. no model identifier may reach the browser -----------------------------------
+# specs.md Part 1 and CLAUDE.md's non-negotiable: model identifiers are chosen by the
+# developer, live in server/src/config.ts, and are never editable in the app. The browser
+# is shown them only as text served by /api/models at runtime. A literal in web/src would
+# be the first step back toward a request that can name its own model — which, with no
+# login on the URL, is a cost hole that spends someone else's money.
+web_staged=$(echo "$staged" | grep '^web/src/' || true)
+if [ -n "$web_staged" ]; then
+  if grep -nE '"[a-z0-9-]+/[A-Za-z0-9._-]+:free"|"openai/gpt-|"anthropic/claude-' $web_staged >/dev/null 2>&1; then
+    echo ""
+    echo "  A model identifier is written into the browser bundle:"
+    grep -nE '"[a-z0-9-]+/[A-Za-z0-9._-]+:free"|"openai/gpt-|"anthropic/claude-' $web_staged | head -5
+    fail "the client names no model. Read it from /api/models instead."
+  fi
+fi
+
+# ---- 3, 4, 5. the mechanical checks --------------------------------------------------
+echo "  pre-commit: typecheck…"
+npm run typecheck --silent >/dev/null || fail "typecheck failed. Run: npm run typecheck"
+
+echo "  pre-commit: lint…"
+npx eslint . >/dev/null || fail "lint failed. Run: npx eslint ."
+
+echo "  pre-commit: tests…"
+npm test --silent >/dev/null 2>&1 || fail "tests failed. Run: npm test"
+
+echo "  pre-commit: ✓ secrets, model ids, types, lint, tests"

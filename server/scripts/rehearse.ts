@@ -152,7 +152,7 @@ function usage(promptTokens: number, completionTokens: number): Usage {
 }
 
 function attemptRow(options: CallOptions, elapsedMs: number, ok: boolean): Attempt {
-  const model = options.models[0] as string;
+  const model = options.models[0];
   return {
     label: options.label,
     attempt: (options.priorAttempts ?? 0) + 1,
@@ -238,7 +238,7 @@ async function rehearsalCaller(options: CallOptions): Promise<CallResult> {
   return {
     label: options.label,
     text,
-    model: options.models[0] as string,
+    model: options.models[0],
     finishReason: "stop",
     usage: usage(680, judging ? 190 : 130),
     attempts: [attemptRow(options, elapsed, true)],

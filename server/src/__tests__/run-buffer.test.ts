@@ -166,8 +166,8 @@ describe("a buffer, not a store", () => {
     const buffer = new RunBuffer(1000, 3);
     const ids = [buffer.open(), buffer.open(), buffer.open(), buffer.open()];
 
-    expect(buffer.get(ids[0] as string)).toBeNull();
-    expect(buffer.get(ids[3] as string)).not.toBeNull();
+    expect(buffer.get(ids[0])).toBeNull();
+    expect(buffer.get(ids[3])).not.toBeNull();
     expect(buffer.size()).toBe(3);
   });
 

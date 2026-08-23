@@ -75,7 +75,7 @@ describe("a bench where every judge answers in the form asked for", () => {
 
   it("keeps the reasoning, the raw reply and every attempt", async () => {
     const judging = await bench(ALL_THREE).result;
-    const barak = judging.judges[0]!;
+    const barak = judging.judges[0];
 
     expect(barak.reasoning).toContain("Necessity was made out");
     expect(barak.rawText).toBe(NOT_GUILTY);
@@ -113,7 +113,7 @@ describe("a reply that could not be read", () => {
       ...ALL_THREE,
       "judge:barak": ["Both sides argued well and the record is thin.", GUILTY],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBe("guilty");
     expect(barak.ok).toBe(true);
@@ -121,8 +121,8 @@ describe("a reply that could not be read", () => {
 
     const baraksCalls = calls.filter((call) => call.options.label === "judge:barak");
     expect(baraksCalls).toHaveLength(2);
-    expect(baraksCalls[0]!.options.temperature).toBeUndefined();
-    expect(baraksCalls[1]!.options.temperature).toBe(0);
+    expect(baraksCalls[0].options.temperature).toBeUndefined();
+    expect(baraksCalls[1].options.temperature).toBe(0);
   });
 
   it("retries the same model rather than walking the fallback chain again", async () => {
@@ -133,9 +133,9 @@ describe("a reply that could not be read", () => {
     await result;
 
     const baraksCalls = calls.filter((call) => call.options.label === "judge:barak");
-    expect(baraksCalls[0]!.options.models.length).toBeGreaterThan(1);
-    expect(baraksCalls[1]!.options.models).toEqual([models[0]]);
-    expect(baraksCalls[1]!.options.maxAttempts).toBe(1);
+    expect(baraksCalls[0].options.models.length).toBeGreaterThan(1);
+    expect(baraksCalls[1].options.models).toEqual([models[0]]);
+    expect(baraksCalls[1].options.maxAttempts).toBe(1);
   });
 
   it("marks the judge an error after the second reply is unreadable too", async () => {
@@ -143,7 +143,7 @@ describe("a reply that could not be read", () => {
       ...ALL_THREE,
       "judge:barak": ["The record is thin.", "It remains thin."],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBeNull();
     expect(barak.ok).toBe(false);
@@ -159,7 +159,7 @@ describe("a reply that could not be read", () => {
         "Verdict: guilty.\nFinal verdict: not guilty.",
       ],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBeNull();
     expect(barak.problem).toBe("contradictory");
@@ -175,7 +175,7 @@ describe("a reply the provider cut off", () => {
     let index = 0;
     return async (options: CallOptions): Promise<CallResult> => {
       if (options.label !== "judge:barak") return fakeResult(options, GUILTY);
-      const reply = replies[Math.min(index, replies.length - 1)] as string;
+      const reply = replies[Math.min(index, replies.length - 1)];
       index++;
       // `length` is what the provider reports when it hit the token ceiling.
       return { ...fakeResult(options, reply), finishReason: index === 1 ? "length" : "stop" };
@@ -194,7 +194,7 @@ describe("a reply the provider cut off", () => {
       statements,
       call: cutOff([SEVERED, GUILTY]),
     });
-    const barak = judging.judges[0]!;
+    const barak = judging.judges[0];
 
     expect(barak.verdict).toBe("guilty"); // from the retry, not the severed reply
     expect(barak.retryReason).toBe("unreadable_reply");
@@ -213,7 +213,7 @@ describe("a reply the provider cut off", () => {
           ? { ...fakeResult(options, SEVERED), finishReason: "length" }
           : fakeResult(options, GUILTY),
     });
-    const barak = judging.judges[0]!;
+    const barak = judging.judges[0];
 
     expect(barak.ok).toBe(false);
     expect(barak.verdict).toBeNull();
@@ -227,7 +227,7 @@ describe("a verdict that arrived with no reasoning", () => {
       ...ALL_THREE,
       "judge:barak": ['{"verdict": "guilty"}', GUILTY],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBe("guilty");
     expect(barak.reasoning).toContain("He swore an oath");
@@ -242,7 +242,7 @@ describe("a verdict that arrived with no reasoning", () => {
       ...ALL_THREE,
       "judge:barak": ['{"verdict": "guilty"}', NOT_GUILTY],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBe("guilty");
     expect(barak.reasoning).toBe("");
@@ -254,7 +254,7 @@ describe("a verdict that arrived with no reasoning", () => {
       ...ALL_THREE,
       "judge:barak": ['{"verdict": "not_guilty"}', "timeout"],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.verdict).toBe("not_guilty");
     expect(barak.ok).toBe(true);
@@ -270,7 +270,7 @@ describe("a verdict that arrived with no reasoning", () => {
       ...ALL_THREE,
       "judge:barak": ['{"verdict": "guilty", "reasoning": "The oath was broken."}'],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.ok).toBe(true);
     expect(barak.thinReasoning).toBe(true);
@@ -283,7 +283,7 @@ describe("a judge whose call failed outright", () => {
   it("records the failure and invents nothing", async () => {
     const { result } = bench({ ...ALL_THREE, "judge:barak": ["timeout"] });
     const judging = await result;
-    const barak = judging.judges[0]!;
+    const barak = judging.judges[0];
 
     expect(barak.ok).toBe(false);
     expect(barak.verdict).toBeNull();
@@ -310,7 +310,7 @@ describe("over-length, which is measured and not yet acted on", () => {
       ...ALL_THREE,
       "judge:barak": [JSON.stringify({ verdict: "guilty", reasoning: long })],
     });
-    const barak = (await result).judges[0]!;
+    const barak = (await result).judges[0];
 
     expect(barak.reasoningWords).toBe(over);
     expect(barak.wordCap).toBe(JUDGE_WORD_CAP);

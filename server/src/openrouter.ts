@@ -519,7 +519,7 @@ export async function callChat(options: CallOptions): Promise<CallResult> {
   let repeated = false;
 
   while (attempts.length < limit && index < options.models.length) {
-    const model = options.models[index] as string;
+    const model = options.models[index];
     const { attempt, result } = await attemptOnce(model, attempts.length, options, apiKey);
     attempts.push(attempt);
 
@@ -548,7 +548,7 @@ export async function callChat(options: CallOptions): Promise<CallResult> {
     }
   }
 
-  const last = attempts[attempts.length - 1] as Attempt;
+  const last = attempts[attempts.length - 1];
   throw new OpenRouterError(
     `${options.label} failed after ${attempts.length} attempt(s): ${last.errorMessage}`,
     last.errorKind ?? "bad_response",

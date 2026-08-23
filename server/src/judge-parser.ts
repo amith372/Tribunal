@@ -167,7 +167,7 @@ function firstJsonObject(text: string): string | null {
   let escaped = false;
 
   for (let i = start; i < text.length; i++) {
-    const char = text[i] as string;
+    const char = text[i];
     if (escaped) {
       escaped = false;
       continue;
@@ -314,7 +314,7 @@ export function parseJudgeReply(raw: string): ParsedJudgeReply {
   ] as const) {
     const found = collect(pattern, prose);
     if (found.size === 1) {
-      const verdict = [...found][0] as Verdict;
+      const verdict = [...found][0];
       return done(verdict, reasoningFromProse(prose), route, null);
     }
     if (found.size > 1) return done(null, "", "none", "contradictory");

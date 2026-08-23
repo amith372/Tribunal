@@ -108,7 +108,7 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
 
   const judges = await Promise.all(
     data.judges.map(async (judge, index) => {
-      const requestedModel = models[index] as string;
+      const requestedModel = models[index];
       const prompt = buildJudgePrompt(run, judge, statements);
       const chain = fallbackChainFor(requestedModel, mode, "judge", models);
       const attempts: Attempt[] = [];

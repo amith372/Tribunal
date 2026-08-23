@@ -57,10 +57,10 @@ async function record(options: {
 
   const script: Record<string, readonly Reply[]> = {};
   run.advocates.forEach((advocate, i) => {
-    script[`advocate:${advocate.character.id}`] = [advocateReplies[i] as Reply];
+    script[`advocate:${advocate.character.id}`] = [advocateReplies[i]];
   });
   data.judges.forEach((judge, i) => {
-    script[`judge:${judge.id}`] = [options.judges[i] as Reply];
+    script[`judge:${judge.id}`] = [options.judges[i]];
   });
 
   const startedAt = new Date("2026-08-21T10:00:00.000Z");

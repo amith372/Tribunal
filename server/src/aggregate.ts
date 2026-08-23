@@ -209,7 +209,7 @@ function collisionsOf(
 
 /** The maker half of an identifier — `nvidia` in `nvidia/nemotron-3-nano-30b-a3b:free`. */
 function makerOf(model: string): string {
-  return model.split("/")[0] as string;
+  return model.split("/")[0];
 }
 
 /**

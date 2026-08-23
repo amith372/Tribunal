@@ -199,7 +199,7 @@ describe("over-length, which is measured and not yet acted on", () => {
     const over = ADVOCATE_WORD_CAP + 30;
     const long = Array.from({ length: over }, () => "word").join(" ");
     const { result } = wave({ ...ALL_FOUR, "advocate:tyrion": [long] });
-    const tyrion = (await result).statements[0]!;
+    const tyrion = (await result).statements[0];
 
     expect(tyrion.words).toBe(over);
     expect(tyrion.wordCap).toBe(ADVOCATE_WORD_CAP);
@@ -212,7 +212,7 @@ describe("over-length, which is measured and not yet acted on", () => {
     // Grey Worm is "sparing with words, with no taste for rhetoric" — a 7-word statement
     // is the persona working, not a failed call. The cap is a maximum only.
     const { result } = wave({ ...ALL_FOUR, "advocate:grey-worm": ["He killed our queen. That is all."] });
-    const greyWorm = (await result).statements[3]!;
+    const greyWorm = (await result).statements[3];
 
     expect(greyWorm.ok).toBe(true);
     expect(greyWorm.overCap).toBe(false);

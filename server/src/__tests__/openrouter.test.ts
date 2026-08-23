@@ -48,7 +48,7 @@ const okBody = (model: string) => ({
 
 const chain = (): string[] => {
   const { judgePool } = getModelRegistry();
-  return [judgePool[0] as string, FALLBACK_ROUTER];
+  return [judgePool[0], FALLBACK_ROUTER];
 };
 
 const call = (models: readonly string[]) =>
@@ -65,8 +65,8 @@ describe("a 429 that names one model", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(respond(429, errorBody("Rate limit exceeded: 20 requests per minute")))
-      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -86,7 +86,7 @@ describe("a 429 that means the day's free requests are gone", () => {
       .mockResolvedValue(
         respond(429, errorBody("Rate limit exceeded: free-models-per-day. Add credits to continue.")),
       );
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     await expect(call(models)).rejects.toThrow(OpenRouterError);
 
@@ -98,7 +98,7 @@ describe("a 429 that means the day's free requests are gone", () => {
   it("is classified as daily_limit and says so in words a user can act on", async () => {
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(respond(429, errorBody("Daily quota exceeded for free models"))) as unknown as typeof fetch;
+      .mockResolvedValue(respond(429, errorBody("Daily quota exceeded for free models")));
 
     const error = await call(chain()).catch((e: unknown) => e as OpenRouterError);
 
@@ -121,9 +121,9 @@ describe("the two are told apart by the message, not the status", () => {
     for (const [message, expected] of cases) {
       globalThis.fetch = vi
         .fn()
-        .mockResolvedValue(respond(429, errorBody(message))) as unknown as typeof fetch;
+        .mockResolvedValue(respond(429, errorBody(message)));
 
-      const error = (await call([chain()[0] as string]).catch((e: unknown) => e)) as OpenRouterError;
+      const error = (await call([chain()[0]]).catch((e: unknown) => e)) as OpenRouterError;
       expect(error.attempts[0]?.errorKind, message).toBe(expected);
     }
   });
@@ -139,15 +139,15 @@ describe("a reply that arrived but carries no answer", () => {
   it("is a retryable failure, not a successful empty answer", async () => {
     const models = chain();
     const empty = {
-      model: models[0] as string,
+      model: models[0],
       choices: [{ message: { content: "   " }, finish_reason: "length" }],
       usage: { prompt_tokens: 300, completion_tokens: 200, total_tokens: 500, cost: 0 },
     };
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(respond(200, empty))
-      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -168,7 +168,7 @@ describe("the model that answered", () => {
   it("is read from the response, not from what was asked for", async () => {
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(respond(200, okBody("someone/else-entirely:free"))) as unknown as typeof fetch;
+      .mockResolvedValue(respond(200, okBody("someone/else-entirely:free")));
 
     const result = await call([FALLBACK_ROUTER]);
 
@@ -183,7 +183,7 @@ describe("the model that answered", () => {
       choices: [{ message: { content: "A statement." }, finish_reason: "stop" }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, cost: 0 },
     };
-    globalThis.fetch = vi.fn().mockResolvedValue(respond(200, noModel)) as unknown as typeof fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(respond(200, noModel));
 
     const result = await call(models);
     expect(result.model).toBe(models[0]);
@@ -195,7 +195,7 @@ describe("an error hiding inside a 200", () => {
     // OpenRouter can answer 200 and put the failure in the payload.
     globalThis.fetch = vi
       .fn()
-      .mockResolvedValue(respond(200, errorBody("free-models-per-day limit reached"))) as unknown as typeof fetch;
+      .mockResolvedValue(respond(200, errorBody("free-models-per-day limit reached")));
 
     const error = (await call(chain()).catch((e: unknown) => e)) as OpenRouterError;
 
@@ -222,7 +222,7 @@ describe("choosing where the next request goes", () => {
 
   const threeDeep = (): string[] => {
     const { judgePool } = getModelRegistry();
-    return [judgePool[0] as string, judgePool[1] as string, FALLBACK_ROUTER];
+    return [judgePool[0], judgePool[1], FALLBACK_ROUTER];
   };
 
   it("asks the same model again after a provider error, then moves on", async () => {
@@ -231,8 +231,8 @@ describe("choosing where the next request goes", () => {
       .fn()
       .mockResolvedValueOnce(respond(500, errorBody("upstream exploded")))
       .mockResolvedValueOnce(respond(500, errorBody("upstream exploded again")))
-      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -250,8 +250,8 @@ describe("choosing where the next request goes", () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce(respond(200, okBody(models[0] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[0])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -267,8 +267,8 @@ describe("choosing where the next request goes", () => {
       .fn()
       .mockResolvedValueOnce(respond(429, limited))
       .mockResolvedValueOnce(respond(429, limited))
-      .mockResolvedValueOnce(respond(200, okBody(models[2] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[2])));
+    globalThis.fetch = fetchMock;
 
     await call(models);
 
@@ -282,8 +282,8 @@ describe("choosing where the next request goes", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(respond(404, { error: { message: "No endpoints found", code: 404 } }))
-      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     await call(models);
 
@@ -295,7 +295,7 @@ describe("choosing where the next request goes", () => {
     // A fresh Response per call: a body can only be read once, so a single shared one
     // would fail on the second request for a reason that has nothing to do with the code.
     const fetchMock = vi.fn().mockImplementation(() => respond(500, errorBody("still broken")));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     await expect(call(models)).rejects.toBeInstanceOf(OpenRouterError);
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -304,7 +304,7 @@ describe("choosing where the next request goes", () => {
   it("gives the same model at most one second ask, never two", async () => {
     const models = threeDeep();
     const fetchMock = vi.fn().mockImplementation(() => respond(500, errorBody("still broken")));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     await expect(call(models)).rejects.toBeInstanceOf(OpenRouterError);
 
@@ -318,7 +318,7 @@ describe("choosing where the next request goes", () => {
     const fetchMock = vi
       .fn()
       .mockImplementation(() => respond(429, errorBody("free-models-per-day limit reached")));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
 
     await expect(call(models)).rejects.toMatchObject({ kind: "daily_limit" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -334,7 +334,7 @@ describe("choosing where the next request goes", () => {
   it("records a timeout that lands while the body is being read, and retries it", async () => {
     const models = threeDeep();
     const slowBody = (): Response => {
-      const response = respond(200, okBody(models[0] as string));
+      const response = respond(200, okBody(models[0]));
       Object.defineProperty(response, "text", {
         value: () =>
           Promise.reject(
@@ -348,8 +348,8 @@ describe("choosing where the next request goes", () => {
     const fetchMock = vi
       .fn()
       .mockImplementationOnce(slowBody)
-      .mockImplementationOnce(() => respond(200, okBody(models[0] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockImplementationOnce(() => respond(200, okBody(models[0])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -369,9 +369,9 @@ describe("choosing where the next request goes", () => {
     });
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(() => respond(200, empty(models[0] as string)))
-      .mockImplementationOnce(() => respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockImplementationOnce(() => respond(200, empty(models[0])))
+      .mockImplementationOnce(() => respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 
@@ -388,8 +388,8 @@ describe("choosing where the next request goes", () => {
       .fn()
       .mockResolvedValueOnce(respond(500, errorBody("upstream exploded")))
       .mockResolvedValueOnce(respond(500, errorBody("upstream exploded again")))
-      .mockResolvedValueOnce(respond(200, okBody(models[1] as string)));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
 
     const result = await call(models);
 

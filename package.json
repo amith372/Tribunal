@@ -14,6 +14,9 @@
     "start": "node server/dist/index.js",
     "test": "npm run test -w server",
     "test:verbose": "npm run test:verbose -w server",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "hooks": "git config core.hooksPath .githooks",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web && tsc -p tsconfig.scripts.json",
     "preflight:table": "npm run preflight:table -w server",
     "test:ui": "npm run test:ui -w server",
@@ -31,7 +34,12 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "concurrently": "^10.0.5",
-    "sharp": "^0.35.3"
+    "eslint": "^10.9.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.11.0",
+    "sharp": "^0.35.3",
+    "typescript-eslint": "^8.67.0"
   }
 }

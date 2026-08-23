@@ -138,7 +138,7 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
 
   const statements = await Promise.all(
     run.advocates.map(async (advocate, index) => {
-      const requestedModel = models[index] as string;
+      const requestedModel = models[index];
       const prompt = buildAdvocatePrompt(run, advocate, data);
 
       const base = {
@@ -222,7 +222,7 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
           words: null,
           overCap: false,
           model: null,
-          error: refused ? (refused.check.detail as string) : failure.message,
+          error: refused ? (refused.check.detail) : failure.message,
           errorKind: error instanceof OpenRouterError ? error.kind : null,
           problem: refused ? refused.check.problem : null,
           rescreened: refused !== null,

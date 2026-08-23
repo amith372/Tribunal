@@ -16,13 +16,15 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 | Models | OpenRouter, free (`:free`) models only, identifiers server-side |
 | Persistence | **None** — the exported HTML file is the run record |
 | Deploy | Render free Web Service, kept awake by an external keep-warm pinger; `OPENROUTER_API_KEY` is a Render env var, never in the repo |
-| Tests | Vitest — pre-flight, judge parser, aggregation, model guard |
+| Tests | Vitest — pre-flight, judge parser, aggregation, model guard, and the client's mirror of the pre-flight |
+| Gate | `.githooks/pre-commit` refuses a commit that leaks a key, names a model in `web/src`, or fails typecheck, lint or tests. Enable per clone with `npm run hooks`; ~13s |
 
 ## Working rules
 1. **Spec first.** Fix `specs.md` before you fix code; never patch code around a stale spec. Judge quality by the spec, not the code.
 2. **Ask when unclear.** If a requirement is ambiguous or you are about to guess, stop and ask one focused question before coding.
 3. **Change the file and log it together, under today's date.** When a decision changes behavior, edit whichever file it belongs to — `specs.md` (what to build) or `CLAUDE.md` (how to build) — and *in the same step* add an entry to `spec_logs.md`. Each entry states **what changed, why, and which Part or section**. Put it under a section header for the **actual date the change is made** — **confirm the real current date rather than assuming it**; this plan was first drafted under the wrong date, which is exactly what this guards against. If today has no section yet, start a new one at the top (newest first). Never append today's change to an earlier date's section, and never backdate. **When a decision supersedes an earlier logged one, delete the superseded entry in the same step** — the log keeps only what still stands, so a reader never has to work out which of two contradicting entries is current. The edit and its log entry always move together — the spec file is the truth, `spec_logs.md` is the standing record of why.
-4. **Don't drift from the non-negotiables below.**
+4. **The mechanical checks are not yours to judge.** `npm run typecheck`, `npm run lint` and `npm test` all pass before anything is committed, and the pre-commit hook enforces that with nobody present. Never commit with `--no-verify`, and never turn a lint rule off without writing the reason beside it.
+5. **Don't drift from the non-negotiables below.**
 
 ## Non-negotiables
 Duplicated here on purpose, so they still hold in a session that never opens `specs.md`. On any conflict, `specs.md` wins.

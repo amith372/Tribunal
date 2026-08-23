@@ -58,7 +58,7 @@ function headline(record: RunRecord): { title: string; detail: string; tone: str
   switch (outcome.kind) {
     case "verdict":
       return {
-        title: VERDICT_LABEL[outcome.verdict] as string,
+        title: VERDICT_LABEL[outcome.verdict],
         detail: `${outcome.tally.guilty}–${outcome.tally.notGuilty} on a bench of three`,
         tone: outcome.verdict === "guilty" ? "guilty" : "acquitted",
       };
@@ -106,7 +106,7 @@ function judgeBlock(judge: JudgeOutcome): string {
   return `<article class="card">
     <h3>${escapeHtml(judge.name)}</h3>
     <p class="verdict ${judge.verdict === "guilty" ? "guilty" : "acquitted"}">${
-      VERDICT_LABEL[judge.verdict] as string
+      VERDICT_LABEL[judge.verdict]
     }</p>
     <p class="speech">${escapeHtml(judge.reasoning)}</p>
     <p class="meta">${escapeHtml(judge.model ?? "—")} · ${escapeHtml(notes.join(" · "))}</p>

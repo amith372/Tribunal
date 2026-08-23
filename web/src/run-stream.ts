@@ -131,7 +131,10 @@ export function openRunStream(source: RunSource, handlers: RunStreamHandlers): (
       controller = new AbortController();
       handlers.onPhase(attempt === 0 ? "connecting" : "reconnecting", attempt);
 
-      let dropped = false;
+      // Every path out of the block below either returns or leaves this true, so it is
+      // declared without an initial value: a `= false` here would be a value nothing ever
+      // reads, and the reader would have to check that for themselves to know it.
+      let dropped: boolean;
       try {
         const response = starting
           ? await fetch("/api/run", {

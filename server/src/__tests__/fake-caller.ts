@@ -45,7 +45,7 @@ export function fakeAttempt(
 }
 
 export function fakeResult(options: CallOptions, text: string): CallResult {
-  const model = options.models[0] as string;
+  const model = options.models[0];
   return {
     label: options.label,
     text,
@@ -57,7 +57,7 @@ export function fakeResult(options: CallOptions, text: string): CallResult {
 }
 
 export function fakeError(options: CallOptions, kind: ErrorKind = "server_error"): OpenRouterError {
-  const model = options.models[0] as string;
+  const model = options.models[0];
   return new OpenRouterError(`${options.label} failed after 2 attempt(s): fake failure`, kind, [
     fakeAttempt(options.label, model, false, kind),
   ]);
@@ -83,7 +83,7 @@ export function scriptedCaller(script: Record<string, readonly (string | ErrorKi
 
     const index = cursor.get(options.label) ?? 0;
     cursor.set(options.label, index + 1);
-    const reply = replies[Math.min(index, replies.length - 1)] as string | ErrorKind;
+    const reply = replies[Math.min(index, replies.length - 1)];
 
     if (isErrorKind(reply)) throw fakeError(options, reply);
     return fakeResult(options, reply);

@@ -25,7 +25,7 @@ import { DEFAULT_MAX_ATTEMPTS } from "../openrouter.js";
  * catches the case the rule was written for — two NVIDIA Nemotron models on the bench at
  * once — without pretending to know how any two model families are related.
  */
-const providerOf = (id: string): string => id.split("/")[0] as string;
+const providerOf = (id: string): string => id.split("/")[0];
 
 const OVERRIDE_KEYS = [
   "TRIBUNAL_MODEL_SOLO",
@@ -244,7 +244,7 @@ describe("fallback chains", () => {
    */
   it("start at the role's own model and prefer a vetted spare to the router", () => {
     const registry = getModelRegistry();
-    const primary = registry.judgePool[0] as string;
+    const primary = registry.judgePool[0];
     const chain = fallbackChainFor(primary, "per-role", "judge");
 
     expect(chain[0]).toBe(primary);
@@ -254,7 +254,7 @@ describe("fallback chains", () => {
 
   it("contain no duplicates and nothing outside the allowlist", () => {
     const registry = getModelRegistry();
-    const chain = fallbackChainFor(registry.advocatePool[2] as string, "per-role", "advocate");
+    const chain = fallbackChainFor(registry.advocatePool[2], "per-role", "advocate");
 
     expect(new Set(chain).size).toBe(chain.length);
     for (const id of chain) expect(() => assertAllowedModel(id)).not.toThrow();
@@ -320,7 +320,7 @@ describe("fallback chains", () => {
 
   it("fall back to the router only for a role with no vetted spare left", () => {
     const { judgePool } = getModelRegistry();
-    const primary = judgePool[0] as string;
+    const primary = judgePool[0];
 
     // Every other pool model already serving a role: nothing vetted is left to offer.
     expect(fallbackChainFor(primary, "per-role", "judge", judgePool)).toEqual([
