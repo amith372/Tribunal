@@ -1,4 +1,13 @@
 {
+  // `rootDir` lives here rather than in `tsconfig.json` because it is an *emit* concern:
+  // it decides the shape of `dist/`. The typechecking config must not carry it, because
+  // one test deliberately reads `web/src/preflight-mirror.ts` — the browser's copy of the
+  // pre-flight rules — to prove it still agrees with this server's. That file is outside
+  // `src/` by design and is never compiled into the build: the exclusion below keeps the
+  // test that imports it out of the emit graph entirely.
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src"
+  },
   "exclude": ["src/**/*.test.ts", "src/__tests__/**"]
 }

@@ -2,9 +2,13 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
+    // The repo root, not `src`. This config only ever typechecks (`--noEmit`), and one
+    // test deliberately reads `web/src/preflight-mirror.ts` to prove the browser's copy of
+    // the pre-flight rules still agrees with this server's. `tsconfig.build.json` narrows
+    // this back to `src` for the emit, where it decides the shape of `dist/`.
+    "rootDir": "..",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "src",
     "outDir": "dist",
     "types": ["node"],
     "strict": true,
