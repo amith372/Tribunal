@@ -24,6 +24,7 @@
     "record:demo": "npm run record:demo -w server",
     "images:optimize": "tsx scripts/optimize-images.ts",
     "trial:run": "npm run trial:run -w server --",
+    "rehearse": "npm run rehearse -w server --",
     "gate:run": "npm run gate:run -w server --"
   },
   "engines": {

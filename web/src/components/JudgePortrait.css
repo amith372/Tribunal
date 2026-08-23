@@ -1,0 +1,30 @@
+/* A round medallion rather than the advocates' rounded square: the bench is a different
+ * kind of participant, and one glance should say so without reading a label. */
+
+.judge-portrait {
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--panel);
+}
+
+.judge-portrait.phase-waiting {
+  border: 1.5px solid var(--tile-border);
+  opacity: 0.55;
+}
+
+.judge-portrait.phase-deliberating {
+  border: 1.5px solid var(--tile-border-accused);
+  background: var(--highlight);
+}
+
+/* Gold, like an advocate who has spoken: the seat has done its work. */
+.judge-portrait.phase-ruled {
+  border: 2px solid var(--gold);
+  background: var(--highlight);
+}
+
+.judge-portrait.phase-failed {
+  border: 2px solid var(--guilty);
+  filter: grayscale(0.85);
+  opacity: 0.7;
+}

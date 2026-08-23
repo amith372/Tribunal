@@ -1,3 +1,6 @@
+/* The framing of a character portrait. The motion and the cross-fade live in
+ * `Portrait.css`; everything here is what the frame says about the character inside it. */
+
 .character-tile {
   display: block;
   border-radius: var(--radius-tile);
@@ -18,12 +21,43 @@
   background: var(--highlight);
 }
 
-/* A side, in the verdict palette. Thicker than neutral: placement is the decision this
- * screen exists to make, so a placed card should be readable across the room. */
+/* A side, in the verdict palette. Thicker than neutral: placement is the decision Side
+ * Select exists to make, so a placed card should be readable across the room. */
 .character-tile.tone-defense {
   border: 2.5px solid var(--acquitted);
 }
 
 .character-tile.tone-prosecution {
   border: 2.5px solid var(--guilty);
+}
+
+/* ---- the run screen's four ----------------------------------------------------------
+ * A role passes through these in order — waiting, thinking, then spoke or failed — so
+ * they read as one sequence rather than four unrelated treatments.
+ */
+
+.character-tile.tone-waiting {
+  border: 1px solid var(--tile-border);
+  background: var(--panel-inset);
+  opacity: 0.5;
+}
+
+/* Dashed while the answer is still out: the frame is not closed yet. */
+.character-tile.tone-thinking {
+  border: 2px dashed var(--tile-border-accused);
+  background: var(--highlight);
+}
+
+.character-tile.tone-spoke {
+  border: 2px solid var(--gold);
+  background: var(--highlight);
+}
+
+/* A statement that never arrived. Drained of colour and framed in the guilty crimson —
+ * this is the one tone that means something went wrong, and it is never a happy face. */
+.character-tile.tone-failed {
+  border: 2px solid var(--guilty);
+  background: var(--panel-inset);
+  filter: grayscale(0.85);
+  opacity: 0.75;
 }

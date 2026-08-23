@@ -20,6 +20,7 @@
     "models:check": "tsx scripts/models-check.ts",
     "record:demo": "tsx scripts/record-demo.ts",
     "trial:run": "tsx scripts/trial-run.ts",
+    "rehearse": "tsx scripts/rehearse.ts",
     "gate:run": "tsx scripts/gate-run.ts"
   },
   "dependencies": {

@@ -1,6 +1,3 @@
-import { useState } from "react";
-
-
 import { AppFrame } from "../components/AppFrame.js";
 import { Button } from "../components/Button.js";
 import { CharacterTile } from "../components/CharacterTile.js";
@@ -28,6 +25,11 @@ import "./SideSelect.css";
  * would shift the layout and take the reason with it, and a character whose controls
  * disappeared would read as locked in when in fact nothing is settled until the trial
  * opens.
+ *
+ * **The primary action here is the expensive one.** Pressing it posts the run and spends
+ * seven requests out of a daily allowance rationed in requests, so it is reachable only
+ * from a complete casting — and it disables itself the moment it is pressed, because a
+ * double-press would spend fourteen.
  */
 
 /** The three positions on the track, left to right. `null` is the middle: uncast. */
@@ -39,6 +41,7 @@ export function SideSelect({
   draft,
   onMove,
   onBack,
+  onRun,
 }: {
   /** The four who are not on trial. The defendant is never among them (Part 1). */
   advocates: readonly Character[];
@@ -46,14 +49,9 @@ export function SideSelect({
   draft: SetupDraft;
   onMove: (characterId: string, position: Position) => void;
   onBack: () => void;
+  /** Opens the trial: posts the run and hands the stream to the trial screen. */
+  onRun: () => void;
 }) {
-  /**
-   * Stage 6 does not run anything. The primary action is present, styled and reachable
-   * only from a valid casting — and pressing it says so plainly instead of spending seven
-   * rationed requests to render a screen that does not exist yet.
-   */
-  const [note, setNote] = useState<string | null>(null);
-
   const defense = countSide(draft, "for");
   const prosecution = countSide(draft, "against");
   const unplaced = advocates.filter((advocate) => !draft.sides[advocate.id]).length;
@@ -61,20 +59,13 @@ export function SideSelect({
 
   const positionOf = (id: string): Position => draft.sides[id] ?? null;
 
-  /** Any move clears the note: it described the casting as it stood when Run was pressed. */
-  const move = (characterId: string, position: Position) => {
-    setNote(null);
-    onMove(characterId, position);
-  };
 
   return (
     <AppFrame
       footer={
         <>
           <div className="app-sheet-footer-status">
-            {note !== null ? (
-              <span className="mono sides-note">{note}</span>
-            ) : ready ? (
+            {ready ? (
               <>
                 <TickMark />
                 <span className="sides-status is-ready">
@@ -100,12 +91,7 @@ export function SideSelect({
               trailingArrow
               disabled={!ready}
               title={ready ? undefined : "Each side holds exactly two before the trial opens."}
-              onClick={() =>
-                setNote(
-                  "Not built yet — the trial screen is the next stage. Nothing was sent, and no " +
-                    "model call was spent.",
-                )
-              }
+              onClick={onRun}
             >
               Open the trial
             </Button>
@@ -159,7 +145,7 @@ export function SideSelect({
                   position={position}
                   defense={defense}
                   prosecution={prosecution}
-                  onMove={move}
+                  onMove={onMove}
                 />
               );
               return (

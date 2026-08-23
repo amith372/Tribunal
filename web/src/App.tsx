@@ -1,28 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AppFrame } from "./components/AppFrame.js";
 import { Masthead } from "./components/Masthead.js";
 import { Panel } from "./components/Panel.js";
+import { Run } from "./screens/Run.js";
 import { Setup } from "./screens/Setup.js";
 import { SideSelect } from "./screens/SideSelect.js";
-import { getHealth, getModels, type Health, type Mode, type ModelsView, type Side } from "./api.js";
+import {
+  getHealth,
+  getModels,
+  type Health,
+  type Mode,
+  type ModelsView,
+  type RunRequest,
+  type Side,
+} from "./api.js";
+import { rememberRun, rememberedRun } from "./run-memory.js";
+import { startRunSession, type RunSession } from "./run-session.js";
 import { advocatesOf, chargeIsReady, type SetupDraft } from "./preflight-mirror.js";
 import "./styles/tokens.css";
 
 /**
- * The setup half of the app: the charge sheet, and the casting.
+ * The three screens of a run, and the one draft they are three views of.
  *
- * **The draft lives here rather than in either screen**, because the two screens are two
+ * **The draft lives here rather than in either setup screen**, because those two are two
  * views of one run being prepared — Side Select needs the defendant the charge screen
  * chose, and going back must not throw the casting away. It is held in memory and nowhere
  * else: specs.md Part 3, there is no database, and nothing about a run is stored until the
  * user exports one.
  *
- * The run itself is not wired yet — see `SideSelect` on why the primary action does not
- * call `POST /api/run` at this stage.
+ * **The run is started here, by the click, and not by the screen that shows it.** It costs
+ * seven requests out of a rationed daily allowance, so it must happen exactly once — and an
+ * effect cannot promise that, since React deliberately runs effects twice in development to
+ * catch effects that are not idempotent. So `startRunSession` is called from the handler,
+ * the session lives outside React entirely, and the trial screen only subscribes to it.
+ * Starting a run and rejoining one already in flight then differ in one argument and
+ * nowhere else.
  */
 
-type Screen = "setup" | "sides";
+type Screen = "setup" | "sides" | "run";
+
+interface ActiveRun {
+  readonly session: RunSession;
+  /** What was posted. Null on a rejoin — that run's request was made in another page load. */
+  readonly request: RunRequest | null;
+}
 
 export function App() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -34,6 +56,7 @@ export function App() {
   const [chargeSheet, setChargeSheet] = useState("");
   const [defendantId, setDefendantId] = useState<string | null>(null);
   const [sides, setSides] = useState<Record<string, Side | null>>({});
+  const [run, setRun] = useState<ActiveRun | null>(null);
 
   useEffect(() => {
     // The roster and the pre-flight's rules are needed before anything can be drawn; the
@@ -42,6 +65,28 @@ export function App() {
     getModels()
       .then(setModels)
       .catch(() => setModels(null));
+  }, []);
+
+  /**
+   * A run left behind by a previous page load is rejoined rather than re-run.
+   *
+   * A refresh in the middle of a trial would otherwise throw away seven requests and start
+   * seven more. The server holds the run by its id for ten minutes after it ends, so the
+   * id parked in `sessionStorage` is enough to walk back into it — and if the buffer has
+   * already let it go, the trial screen says so and offers the way back to the charge.
+   */
+  const rejoinChecked = useRef(false);
+  useEffect(() => {
+    // Once per page load, latched rather than left to the effect's own discipline: this
+    // runs twice in development, and a second session would leave one stream reading with
+    // nobody watching it. Rejoining costs no request either way — the tidiness is the point.
+    if (rejoinChecked.current) return;
+    rejoinChecked.current = true;
+
+    const runId = rememberedRun();
+    if (runId === null) return;
+    setRun({ session: startRunSession({ kind: "rejoin", runId }), request: null });
+    setScreen("run");
   }, []);
 
   if (error !== null) {
@@ -89,6 +134,25 @@ export function App() {
     setSides({});
   };
 
+  if (screen === "run" && run !== null) {
+    return (
+      <Run
+        session={run.session}
+        characters={characters}
+        judgeNames={health.judges}
+        request={run.request}
+        onNewCase={() => {
+          // The id is dropped first: leaving this screen means the tab is no longer
+          // watching that run, and a stale id would pull the next reload back into it.
+          rememberRun(null);
+          run.session.close();
+          setRun(null);
+          setScreen("setup");
+        }}
+      />
+    );
+  }
+
   if (screen === "sides" && defendant) {
     return (
       <SideSelect
@@ -99,6 +163,28 @@ export function App() {
           setSides((current) => ({ ...current, [characterId]: position }))
         }
         onBack={() => setScreen("setup")}
+        /**
+         * The expensive step. The casting is complete or the button is disabled — the
+         * server re-runs the whole pre-flight regardless, and refuses before spending a
+         * single call if this screen let something through.
+         */
+        onRun={() => {
+          if (defendantId === null) return;
+          const request: RunRequest = {
+            chargeSheet,
+            defendant: defendantId,
+            // Only the four advocates, each with the side it was pushed to. There is no
+            // model field here, and there is nowhere in the app to type one.
+            advocates: advocates.map((advocate) => ({
+              id: advocate.id,
+              side: (sides[advocate.id] ?? "for") as Side,
+            })),
+            mode,
+          };
+          // The one line in the app that spends anything. It runs on a click, once.
+          setRun({ session: startRunSession({ kind: "start", request }), request });
+          setScreen("run");
+        }}
       />
     );
   }

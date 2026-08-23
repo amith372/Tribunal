@@ -193,13 +193,6 @@
   color: var(--acquitted);
 }
 
-/* The Run button's reply this stage. Mono, because it is a note about the build rather
- * than something the tribunal said. */
-.sides-note {
-  font-size: var(--fs-mono);
-  color: var(--muted);
-}
-
 /* ---- narrow ----------------------------------------------------------------------- */
 
 @media (max-width: 900px) {

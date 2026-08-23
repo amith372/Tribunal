@@ -88,6 +88,8 @@
   --guilty: #8e1c1c;
   --acquitted: #2c7a3e;
   --gold: #c9992f;
+  /* Gold dark enough to read as text on the panel creams. */
+  --gold-deep: #8a6510;
   /* A count part-way to full, and the warning line that explains why Run is shut. */
   --amber: #a8791a;
   --amber-text: #8a6a1e;
@@ -118,6 +120,28 @@
   --flat: linear-gradient(180deg, var(--hairline), #cfbf98);
   --flat-border: #c3b087;
   --flat-text: #a89268;
+
+  /* ---- the run screen's status chips ----------------------------------------------
+   * A role passes through waiting → composing → spoke, or → no statement. Four tones for
+   * four states, taken from the trial artboard, so the chip and the portrait frame beside
+   * it are saying the same thing in two ways.
+   */
+  /* Gold rather than green: green is the defense and crimson the prosecution across every
+   * screen, so a green "delivered" chip on a prosecutor's card spends one of those two
+   * colours on a second meaning. Gold is what the app already uses for a seat that has
+   * done its work. */
+  --chip-spoke-bg: #f4e6bb;
+  --chip-spoke-border: #d9b45f;
+  --chip-thinking-bg: #f2dfa8;
+  --chip-thinking-border: #d4b978;
+  --chip-failed-bg: #f5e2df;
+  --chip-failed-border: #d9b3ac;
+  --chip-waiting-border: #ded0ab;
+  /* The ruled lines standing in for a statement that has not arrived. */
+  --skeleton: #e6d5a8;
+  --hairline-amber: #e0cb95;
+  /* A card for a role that has not been called: the sheet still showing through it. */
+  --panel-ghost: rgba(250, 244, 221, 0.6);
 
   /* ---- masthead detail ------------------------------------------------------------ */
   --masthead-sub: #e6c3a4;
