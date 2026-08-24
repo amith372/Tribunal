@@ -39,7 +39,9 @@ import {
   resolveRunModels,
   type Mode,
 } from "./config.js";
+import type { RunRecord } from "./aggregate.js";
 import type { TribunalData } from "./data.js";
+import { buildExportHtml, exportFileName } from "./export.js";
 import { coldModels } from "./model-health.js";
 import {
   CHARGE_CUES,
@@ -262,6 +264,56 @@ export function createApp(options: AppOptions): Express {
       return;
     }
     stream(res, buffer, runId, resumeFrom(req.headers["last-event-id"], req.query.from));
+  });
+
+  /**
+   * The run record, as the file the user keeps.
+   *
+   * specs.md Part 3: there is no database, and the exported HTML file *is* the run record.
+   * It is rendered here rather than in the browser for two reasons that are really one —
+   * `buildExportHtml` is a pure function of the same `RunRecord` the panels render, so the
+   * file's numbers cannot disagree with the screen's, and being server-side it is reachable
+   * by the test suite instead of checkable only by someone opening a download. The browser
+   * also does not have everything the record needs: the raw response bodies are on the
+   * attempts the server holds.
+   *
+   * It is bounded by the same hold as the stream — a run is kept while in flight and for a
+   * few minutes after, and then it is gone, because nothing about a run is stored. The
+   * client asks for this the moment the run finishes rather than when the button is pressed,
+   * so a reader who takes their time over the five panels is not the one who pays for that.
+   */
+  app.get("/api/run/:id/export", (req: Request, res: Response) => {
+    // Express 5 types a route parameter as possibly repeated; this one never is.
+    const held = buffer.get(req.params.id as string);
+    if (!held) {
+      res.status(404).json({
+        ok: false,
+        error:
+          "That run is not being held any more. Runs are kept in memory while they are in " +
+          "flight and for a few minutes after; none is stored, and none survives a restart. " +
+          "If you exported the run while it was open, that file is still the record.",
+      });
+      return;
+    }
+
+    // The closing event carries the record. A run still under way has no record to export —
+    // and a run that ended in an `error` never produced one at all.
+    const done = held.events.find((event) => event.event === "done");
+    if (!done) {
+      res.status(409).json({
+        ok: false,
+        error: held.finished
+          ? "That run stopped before it produced a record, so there is nothing to export."
+          : "That run has not finished yet. The record exists once the bench has ruled.",
+      });
+      return;
+    }
+
+    const record = done.data as RunRecord;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    // Named where the file is built, so the name and the record are decided in one place.
+    res.setHeader("Content-Disposition", `attachment; filename="${exportFileName(record)}"`);
+    res.send(buildExportHtml(record));
   });
 
   // In production the Vite build sits next to the server build and is served from here.

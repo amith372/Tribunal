@@ -11,7 +11,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenRouterError, callChat } from "../openrouter.js";
+import {
+  OpenRouterError,
+  RETRY_AFTER_CEILING_MS,
+  callChat,
+  readRetryAfterMs,
+  waitBeforeRetry,
+} from "../openrouter.js";
 import { FALLBACK_ROUTER, getModelRegistry, resetModelRegistry } from "../config.js";
 
 const realFetch = globalThis.fetch;
@@ -396,5 +402,126 @@ describe("choosing where the next request goes", () => {
     // The token table has to be able to show a retry as a retry (Part 2's "real numbers").
     expect(result.attempts.map((a) => a.attempt)).toEqual([1, 2, 3]);
     expect(result.attempts.map((a) => a.isRetry)).toEqual([false, true, true]);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------
+ * A rate limit the provider put a clock on.
+ *
+ * The default rule is that a 429 skips straight to the next model — a limit hitting a second
+ * ago is hitting still, and guessing at how long to wait spends a request from a rationed
+ * allowance to learn nothing. The exception is a provider that *says* how long. Measured on
+ * 2026-08-23: `z-ai/glm-5.2:free` refused a judge in 0.7s carrying `retry_after_seconds: 5`,
+ * and the immediate fall-through moved that judge onto a maker its neighbour already held —
+ * so the run reported a bench of three that was really two lineages.
+ * ---------------------------------------------------------------------------------------- */
+
+/** A 429 shaped the way the shared free pools actually send one. */
+const poolLimited = (over: Record<string, unknown> = {}) => ({
+  error: {
+    message: "Provider returned error",
+    code: 429,
+    metadata: {
+      raw: "temporarily rate-limited upstream",
+      provider_name: "Decart",
+      limit_source: "upstream_provider_shared_pool",
+      ...over,
+    },
+  },
+});
+
+/** Which model each request named, read back off the stubbed fetch. */
+const modelsAsked = (mock: ReturnType<typeof vi.fn>): string[] =>
+  mock.mock.calls.map(
+    (args) => (JSON.parse((args[1] as { body: string }).body) as { model: string }).model,
+  );
+
+describe("what the provider said about waiting", () => {
+  it("is read from either place a provider can say it", () => {
+    expect(readRetryAfterMs({ retry_after_seconds: 5 })).toBe(5000);
+    expect(readRetryAfterMs({ headers: { "Retry-After": "3" } })).toBe(3000);
+    expect(readRetryAfterMs({ raw: "rate-limited" })).toBeNull();
+    expect(readRetryAfterMs(undefined)).toBeNull();
+  });
+
+  it("is waited out only for a rate limit, and only under the ceiling", () => {
+    // The figure actually observed in the wild.
+    expect(waitBeforeRetry("rate_limited", 5000)).toBe(5000);
+    expect(waitBeforeRetry("rate_limited", RETRY_AFTER_CEILING_MS)).toBe(RETRY_AFTER_CEILING_MS);
+    // Longer than this is not a hiccup, and the chain is the better answer.
+    expect(waitBeforeRetry("rate_limited", RETRY_AFTER_CEILING_MS + 1)).toBeNull();
+    expect(waitBeforeRetry("rate_limited", null)).toBeNull();
+    // A slow model or a delisted one is not waiting on a pool; nothing to wait for.
+    expect(waitBeforeRetry("timeout", 5000)).toBeNull();
+    expect(waitBeforeRetry("model_unavailable", 5000)).toBeNull();
+  });
+});
+
+describe("a 429 carrying a short Retry-After", () => {
+  it("asks the same model again rather than spending a spare", async () => {
+    const models = chain();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(429, poolLimited({ retry_after_seconds: 0.05 })))
+      .mockResolvedValueOnce(respond(200, okBody(models[0])));
+    globalThis.fetch = fetchMock;
+
+    const result = await call(models);
+
+    // The seat stays on the model it was cast with, which is the whole point.
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0]]);
+    expect(result.model).toBe(models[0]);
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts[1].isRetry).toBe(true);
+    // And it costs no extra request: falling through would have made this same second
+    // call, just to a different model. Only the destination changed.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits at most once, then falls through like any other rate limit", async () => {
+    const models = chain();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(429, poolLimited({ retry_after_seconds: 0.05 })))
+      .mockResolvedValueOnce(respond(429, poolLimited({ retry_after_seconds: 0.05 })))
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
+
+    const result = await call(models);
+
+    // Asked twice, then given up on: a pool that did not clear in the time it named is
+    // not going to clear by being asked a third time.
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[0], models[1]]);
+    expect(result.model).toBe(models[1]);
+  });
+});
+
+describe("a 429 with no clock on it behaves exactly as before", () => {
+  it("skips straight to the next model when the provider named no figure", async () => {
+    const models = chain();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(429, poolLimited()))
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
+
+    const result = await call(models);
+
+    // Two of the three rate limits measured on 2026-08-23 were exactly this shape.
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[1]]);
+    expect(result.model).toBe(models[1]);
+  });
+
+  it("skips straight on when the provider asked for longer than the ceiling", async () => {
+    const models = chain();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(respond(429, poolLimited({ retry_after_seconds: 60 })))
+      .mockResolvedValueOnce(respond(200, okBody(models[1])));
+    globalThis.fetch = fetchMock;
+
+    const result = await call(models);
+    expect(modelsAsked(fetchMock)).toEqual([models[0], models[1]]);
+    expect(result.model).toBe(models[1]);
   });
 });

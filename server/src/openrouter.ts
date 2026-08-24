@@ -100,6 +100,10 @@ export interface OpenRouterErrorMetadata {
   provider_name?: string;
   /** e.g. `upstream_provider_shared_pool` — not this account's quota at all. */
   limit_source?: string;
+  /** Seconds the provider says to wait before asking it again. Rarely sent. */
+  retry_after_seconds?: number;
+  /** The upstream headers, which carry `Retry-After` when the provider set one. */
+  headers?: Record<string, string>;
 }
 
 export interface OpenRouterResponse {
@@ -260,9 +264,60 @@ function isRetryable(kind: ErrorKind): boolean {
  * tendency, and asking again mostly returns another one" — and the bench proved the same
  * thing on 2026-08-22, when a model returned empty content twice in a row and burned the
  * call's last attempt on a repeat instead of moving to a model that could answer.
+ *
+ * **A rate limit has one exception, and it is not decided here.** Where the provider itself
+ * named a short `Retry-After`, the wait stops being a guess and the role holds its model —
+ * see `waitBeforeRetry`, which the walk consults before this function.
  */
 function sameModelMayClear(kind: ErrorKind): boolean {
   return kind === "timeout" || kind === "server_error" || kind === "network";
+}
+
+/**
+ * The longest this app will sit still waiting for a rate limit to clear.
+ *
+ * Ten seconds, and the number is bounded by what it is spent on rather than picked: a wave
+ * is four calls in parallel, so a wait delays the wave by the wait itself and not by four
+ * times it, and ten seconds against a 90-second call and a 540-second run is affordable.
+ * A provider asking for longer than this is not describing a hiccup, and the chain — which
+ * exists exactly for that — is the better answer.
+ */
+export const RETRY_AFTER_CEILING_MS = 10_000;
+
+/**
+ * How long to wait before asking the same model again, or `null` to move down the chain.
+ *
+ * **This is the one exception to "a limit that was hitting a second ago is hitting still".**
+ * That rule is right by default and stays the default: a 429 with nothing attached skips
+ * straight to the next model, because guessing at how long to wait would spend a request
+ * from a rationed allowance to be told the same thing. But a provider that volunteers
+ * `Retry-After` is not being guessed at — it is stating how long its own pool needs, and
+ * measured on 2026-08-23 one did: `z-ai/glm-5.2:free` came back in 0.7 seconds with
+ * `retry_after_seconds: 5`.
+ *
+ * Waiting costs no extra request — the retry was going to happen either way — and what it
+ * buys is the seat staying on the model it was cast with. In that same run the immediate
+ * fall-through moved a judge onto a maker its neighbour was already using, and the record
+ * had to disclose a bench of three that was really a bench of two lineages. Keeping the
+ * cast is the whole reason this exists; a few seconds is a small price for it.
+ *
+ * Deliberately narrow. Only a rate limit, only when the provider named a figure, only
+ * under the ceiling, and — enforced by the caller — only once per logical call.
+ */
+export function waitBeforeRetry(kind: ErrorKind, retryAfterMs: number | null): number | null {
+  if (kind !== "rate_limited" || retryAfterMs === null) return null;
+  if (retryAfterMs <= 0 || retryAfterMs > RETRY_AFTER_CEILING_MS) return null;
+  return retryAfterMs;
+}
+
+/** What the provider said, in milliseconds — from either place it can say it. */
+export function readRetryAfterMs(meta: OpenRouterErrorMetadata | undefined): number | null {
+  if (!meta) return null;
+  const seconds =
+    typeof meta.retry_after_seconds === "number"
+      ? meta.retry_after_seconds
+      : Number(meta.headers?.["Retry-After"] ?? meta.headers?.["retry-after"]);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
 }
 
 function classifyStatus(status: number, message: string): ErrorKind {
@@ -313,6 +368,14 @@ function humanMessage(kind: ErrorKind, model: string, detail: string): string {
   }
 }
 
+/** Unref'd: a wait for a rate limit is not a reason to keep the process alive. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
 /** A timeout and a dropped connection look alike until you read the error's name. */
 function abortedKind(error: unknown): ErrorKind {
   const name = (error as Error).name;
@@ -322,6 +385,15 @@ function abortedKind(error: unknown): ErrorKind {
 interface AttemptOutcome {
   readonly attempt: Attempt;
   readonly result: CallResult | null;
+  /**
+   * What the provider said about waiting, when it said anything.
+   *
+   * On the outcome rather than on `Attempt`, on purpose: `Attempt` is a row in the run
+   * record and in the exported file, and this is advice about the *next* request rather
+   * than a fact about the one that was made. It is consumed by the walk below and never
+   * rendered.
+   */
+  readonly retryAfterMs: number | null;
 }
 
 async function attemptOnce(
@@ -353,8 +425,15 @@ async function attemptOnce(
   const fail = (
     kind: ErrorKind,
     detail: string,
-    extras: { httpStatus?: number | null; raw?: unknown; usage?: Usage; respondedModel?: string | null } = {},
+    extras: {
+      httpStatus?: number | null;
+      raw?: unknown;
+      usage?: Usage;
+      respondedModel?: string | null;
+      retryAfterMs?: number | null;
+    } = {},
   ): AttemptOutcome => ({
+    retryAfterMs: extras.retryAfterMs ?? null,
     attempt: {
       ...base,
       respondedModel: extras.respondedModel ?? null,
@@ -435,6 +514,8 @@ async function attemptOnce(
       raw: parsed,
       usage,
       respondedModel: parsed.model ?? null,
+      // Only a provider that volunteered a figure gets waited for; see `waitBeforeRetry`.
+      retryAfterMs: readRetryAfterMs(meta),
     });
   }
 
@@ -481,6 +562,7 @@ async function attemptOnce(
 
   return {
     attempt,
+    retryAfterMs: null,
     result: {
       label: options.label,
       text: content.trim(),
@@ -517,10 +599,18 @@ export async function callChat(options: CallOptions): Promise<CallResult> {
   // the same number, because a transient failure buys one more ask of the same model.
   let index = 0;
   let repeated = false;
+  // A provider's own `Retry-After` is honoured at most once per logical call. Twice would
+  // be waiting out a pool that has already shown it is not clearing in the time it named.
+  let waitedOut = false;
 
   while (attempts.length < limit && index < options.models.length) {
     const model = options.models[index];
-    const { attempt, result } = await attemptOnce(model, attempts.length, options, apiKey);
+    const { attempt, result, retryAfterMs } = await attemptOnce(
+      model,
+      attempts.length,
+      options,
+      apiKey,
+    );
     attempts.push(attempt);
 
     if (result) {
@@ -536,6 +626,21 @@ export async function callChat(options: CallOptions): Promise<CallResult> {
     // free model, so stop rather than burning the rest of the chain.
     if (!isRetryable(kind)) {
       throw new OpenRouterError(attempt.errorMessage ?? "Model call failed.", kind, attempts);
+    }
+
+    /**
+     * A rate limit the provider put a clock on is the one kind worth waiting out.
+     *
+     * Everything else about a 429 stays as it was — no figure, or a figure too long to be
+     * a hiccup, and the chain is the answer. This costs no extra request: the retry was
+     * happening either way, and all that changes is whether it goes to the model this role
+     * was cast with or to a spare.
+     */
+    const wait = waitedOut ? null : waitBeforeRetry(kind, retryAfterMs);
+    if (wait !== null && attempts.length < limit) {
+      waitedOut = true;
+      await sleep(wait);
+      continue;
     }
 
     if (sameModelMayClear(kind) && !repeated) {

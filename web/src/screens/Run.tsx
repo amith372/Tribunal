@@ -8,7 +8,6 @@ import { Masthead } from "../components/Masthead.js";
 import { Panel } from "../components/Panel.js";
 import { preloadAvatars } from "../components/avatars.js";
 import type {
-  Attempt,
   Character,
   JudgeView,
   RunRecordView,
@@ -17,6 +16,9 @@ import type {
   StatementView,
 } from "../api.js";
 import { type RunSession, type RunSnapshot } from "../run-session.js";
+// Tokens and time for one role, summed across its attempts — the same reading the results
+// panels use, kept in one place so a card and a panel cannot disagree about a role's cost.
+import { usageOf } from "../results-model.js";
 import "./Run.css";
 
 /**
@@ -68,6 +70,7 @@ export function Run({
   judgeNames,
   request,
   onNewCase,
+  onSeeVerdict,
 }: {
   /** A run already under way. Opened by the click on Side Select, never by this screen. */
   session: RunSession;
@@ -78,6 +81,8 @@ export function Run({
   /** What was posted, so the room can be drawn before the server answers. Null on a rejoin. */
   request: RunRequest | null;
   onNewCase: () => void;
+  /** On to the verdict panels, which read the finished record from this same session. */
+  onSeeVerdict: () => void;
 }) {
   // The session accumulates outside React and hands over a whole snapshot each time it
   // changes, so a subscriber that arrives late still reads the entire run so far.
@@ -215,8 +220,15 @@ export function Run({
                 <Button
                   variant="primary"
                   trailingArrow
-                  disabled
-                  title="The verdict panels are the next stage. The run above is the whole record for now."
+                  // A run that produced no record has no verdict to show, and the panels
+                  // are never opened on nothing. A refusal or a lost connection ends here.
+                  disabled={state.record === null}
+                  onClick={onSeeVerdict}
+                  title={
+                    state.record === null
+                      ? "This run produced no record, so there is no finding to show."
+                      : undefined
+                  }
                 >
                   See the verdict
                 </Button>
@@ -709,21 +721,4 @@ function Stopped({
       </div>
     </AppFrame>
   );
-}
-
-/**
- * Tokens and time for one role, summed across every attempt it took — retries and
- * fallbacks included, because those were really spent too.
- *
- * `tokens` is `null` where no attempt reported usage at all. Showing a zero there would
- * read as "this was free", which is a different claim from "the model did not say".
- */
-function usageOf(attempts: readonly Attempt[]): { tokens: number | null; elapsedMs: number } {
-  let tokens: number | null = null;
-  let elapsedMs = 0;
-  for (const attempt of attempts) {
-    elapsedMs += attempt.elapsedMs;
-    if (attempt.usage.totalTokens !== null) tokens = (tokens ?? 0) + attempt.usage.totalTokens;
-  }
-  return { tokens, elapsedMs };
 }

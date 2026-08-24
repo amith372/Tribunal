@@ -98,7 +98,27 @@ describe("it opens from disk with no server and no network", () => {
     expect(html).not.toMatch(/\ssrc=/i);
     expect(html).not.toMatch(/<link/i);
     expect(html).not.toMatch(/@import/i);
-    expect(html).not.toMatch(/https?:\/\//i);
+
+    // The only `url(...)` in the document is the embedded font, and it points at itself.
+    for (const [, target] of html.matchAll(/url\(([^)]*)\)/g)) {
+      expect(target.startsWith("data:")).toBe(true);
+    }
+  });
+
+  it("names no remote address anywhere a reader is meant to read", async () => {
+    const html = buildExportHtml(await record({ judges: [GUILTY, GUILTY, NOT_GUILTY] }));
+
+    /**
+     * Everything above "Raw responses" is the document; below it is quoted API output.
+     *
+     * The split matters because the raw section is *evidence* — Part 3 requires the record
+     * to carry the responses as they came — and free models' own error bodies routinely
+     * contain links ("add your own key at …"). Stripping those would be editing the
+     * evidence to satisfy a test. They are escaped text inside a `<pre>` and nothing
+     * fetches them, which is what the assertions above establish for the file as a whole.
+     */
+    const [document] = html.split("<h2>Raw responses</h2>");
+    expect(document).not.toMatch(/https?:\/\//i);
   });
 
   it("is a whole document, not a fragment", async () => {
@@ -129,7 +149,8 @@ describe("its numbers match the record the app rendered", () => {
     for (const attempt of run.attempts) {
       expect(html).toContain(escapeHtml(attempt.label));
     }
-    expect(html).toContain("Every call");
+    // The section headings are the results panels' own, because the file is those panels.
+    expect(html).toContain("Every Call This Run Made");
     expect(html).toContain("Raw responses");
   });
 
@@ -139,7 +160,8 @@ describe("its numbers match the record the app rendered", () => {
 
     expect(run.outcome).toMatchObject({ kind: "verdict", verdict: "guilty" });
     expect(html).toContain("Guilty");
-    expect(html).toContain("2–1 on a bench of three");
+    // Spaced exactly as the verdict panel spaces it — the two are read against each other.
+    expect(html).toContain("2 – 1 on a bench of three");
   });
 });
 

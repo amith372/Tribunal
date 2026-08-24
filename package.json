@@ -12,7 +12,7 @@
     "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
     "build": "npm run build -w web && npm run build -w server",
     "start": "node server/dist/index.js",
-    "test": "npm run test -w server",
+    "test": "npm run test -w server && npm run test -w web",
     "test:verbose": "npm run test:verbose -w server",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -26,9 +26,11 @@
     "models:check": "npm run models:check -w server",
     "record:demo": "npm run record:demo -w server",
     "images:optimize": "tsx scripts/optimize-images.ts",
+    "font:embed": "tsx scripts/embed-font.ts",
     "trial:run": "npm run trial:run -w server --",
     "rehearse": "npm run rehearse -w server --",
-    "gate:run": "npm run gate:run -w server --"
+    "gate:run": "npm run gate:run -w server --",
+    "export:log": "npm run export:log -w server --"
   },
   "engines": {
     "node": ">=20"

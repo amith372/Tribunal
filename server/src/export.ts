@@ -6,21 +6,30 @@
  * — the thing that shows the token numbers were read from real responses and the
  * verdicts were read from models rather than invented.
  *
- * Four properties it holds to:
+ * Five properties it holds to:
  *
- *   1. **Self-contained.** Inline styles, system fonts, no script, no image, no link
- *      to anywhere. It must open from disk with the server stopped and no network, so
- *      anything fetched at view time would be a broken file rather than a slow one.
+ *   1. **Self-contained.** Inline styles, one embedded font, no script, no image, no
+ *      link to anywhere. It must open from disk with the server stopped and no network,
+ *      so anything fetched at view time would be a broken file rather than a slow one.
  *
  *   2. **Pure, and the same source as the screen.** It takes a `RunRecord` and returns
  *      a string — no clock, no I/O. The panels render that same record, which is what
  *      makes Part 2's "its numbers match what the app showed" true by construction.
  *
- *   3. **Everything from a model is escaped.** Up to 200 words of user charge sheet and
+ *   3. **It looks like the app that produced it.** Part 3 asks a reader to check the
+ *      panels *against* this file, so the two must plainly be the same product: the same
+ *      bronze frame around the same parchment sheet, the same crimson plate, the same two
+ *      verdict colours, and the app's own display face carried inside the file rather
+ *      than linked. The palette lives in `export-theme.ts`, which a test holds against
+ *      `web/src/styles/tokens.css` so the two copies cannot quietly drift; the face is
+ *      Cinzel, subsetted, in `export-font.ts` (see `scripts/embed-font.ts` for why the
+ *      display face is embedded and the reading text is not).
+ *
+ *   4. **Everything from a model is escaped.** Up to 200 words of user charge sheet and
  *      seven model replies land in this file. All of it goes through `escapeHtml`, and
  *      there is no path that writes an unescaped value.
  *
- *   4. **An incomplete run is recorded as incomplete.** A missing advocate is named as
+ *   5. **An incomplete run is recorded as incomplete.** A missing advocate is named as
  *      missing and a bench that reached no verdict says so. A record that quietly
  *      looked complete would be worse than no record.
  */
@@ -29,7 +38,27 @@ import type { RunRecord } from "./aggregate.js";
 import type { Attempt } from "./openrouter.js";
 import type { JudgeOutcome } from "./judging.js";
 import type { StatementOutcome } from "./statements.js";
-import { SIDE_NAME } from "./prompts.js";
+import type { StageRollup } from "./summary.js";
+import {
+  advocatesNote,
+  benchNote,
+  bySide,
+  closingLines,
+  findingNote,
+  headline,
+  PANELS,
+  number,
+  price,
+  runSubtitle,
+  seconds,
+  sideTone,
+  stages,
+  summaryRows,
+  usageOf,
+  VERDICT_LABEL,
+} from "./summary.js";
+import { FONT_FAMILY, FONT_NOTICE, FONT_WOFF2_BASE64 } from "./export-font.js";
+import { rootVariables } from "./export-theme.js";
 
 /** The one way text enters this file. Ampersand first, or it double-escapes. */
 export function escapeHtml(value: string): string {
@@ -41,52 +70,45 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-const VERDICT_LABEL: Record<string, string> = {
-  guilty: "Guilty",
-  not_guilty: "Not guilty",
-};
-
-const number = (n: number): string => n.toLocaleString("en-US");
-
-/** $0 while only free models are used — computed, never asserted (specs.md Part 2). */
-const price = (usd: number): string => (usd === 0 ? "$0" : `$${usd.toFixed(6)}`);
-
-const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
-
-function headline(record: RunRecord): { title: string; detail: string; tone: string } {
-  const { outcome } = record;
-  switch (outcome.kind) {
-    case "verdict":
-      return {
-        title: VERDICT_LABEL[outcome.verdict],
-        detail: `${outcome.tally.guilty}–${outcome.tally.notGuilty} on a bench of three`,
-        tone: outcome.verdict === "guilty" ? "guilty" : "acquitted",
-      };
-    case "hung":
-      return { title: "Hung", detail: "One against one; the third seat returned nothing.", tone: "unresolved" };
-    case "inconclusive":
-      return { title: "Inconclusive", detail: outcome.why, tone: "unresolved" };
-    case "aborted":
-      return { title: "Trial abandoned", detail: outcome.message, tone: "unresolved" };
-  }
+/**
+ * A filename for a downloaded record: the defendant and when the run happened.
+ *
+ * The timestamp is what stops two exports of the same defendant landing on one another,
+ * and it is the run's own start rather than the moment of download, so re-exporting a run
+ * twice produces the same name for the same record.
+ */
+export function exportFileName(record: RunRecord): string {
+  const who = record.defendant.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const when = record.startedAt.replace(/[:.]/g, "-").replace(/z$/i, "");
+  return `tribunal-${who || "run"}-${when}.html`;
 }
 
 function statementBlock(statement: StatementOutcome): string {
-  const side = SIDE_NAME[statement.side];
+  const tone = sideTone(statement.side);
+  const plaque = tone === "defense" ? "For the defense" : "For the prosecution";
   if (!statement.ok) {
-    return `<article class="card missing">
-      <h3>${escapeHtml(statement.name)} <span class="side">for ${escapeHtml(side)}</span></h3>
+    return `<article class="card missing side-${tone}">
+      <h3 class="display">${escapeHtml(statement.name)}</h3>
+      <p class="plaque ${tone}">${plaque}</p>
       <p class="absent">No statement was delivered. ${escapeHtml(statement.error ?? "The call failed.")}</p>
     </article>`;
   }
-  // Over-length is recorded on the statement but deliberately not surfaced: the models
-  // hold the prompt cap in practice, and a warning nobody acts on is noise in a record.
+  // The word cap is soft (specs.md Part 2): a reply that ran over is reported here exactly
+  // as the panel reports it, and was never trimmed or re-asked for it.
   const flags: string[] = [];
+  if (statement.overCap) flags.push(`over the ${statement.wordCap}-word cap`);
   if (statement.rescreened) flags.push("first reply refused as not a statement; this is the second");
-  return `<article class="card">
-    <h3>${escapeHtml(statement.name)} <span class="side">for ${escapeHtml(side)}</span></h3>
+  const usage = usageOf(statement.attempts);
+  return `<article class="card side-${tone}">
+    <h3 class="display">${escapeHtml(statement.name)}</h3>
+    <p class="plaque ${tone}">${plaque}</p>
     <p class="speech">${escapeHtml(statement.text ?? "")}</p>
     <p class="meta">${escapeHtml(statement.model ?? "—")} · ${statement.words ?? 0} words${
+      usage.tokens === null ? "" : ` · ${number(usage.tokens)} tokens`
+    } · ${seconds(usage.elapsedMs)}${
       flags.length > 0 ? ` · ${escapeHtml(flags.join(" · "))}` : ""
     }</p>
   </article>`;
@@ -95,22 +117,36 @@ function statementBlock(statement: StatementOutcome): string {
 function judgeBlock(judge: JudgeOutcome): string {
   if (judge.verdict === null) {
     return `<article class="card missing">
-      <h3>${escapeHtml(judge.name)}</h3>
+      <h3 class="display">${escapeHtml(judge.name)}</h3>
       <p class="absent">No verdict. ${escapeHtml(judge.error ?? "The reply could not be read.")}</p>
       <p class="meta">${escapeHtml(judge.model ?? "—")}</p>
     </article>`;
   }
+  const usage = usageOf(judge.attempts);
   const notes: string[] = [`${judge.reasonCount} reason${judge.reasonCount === 1 ? "" : "s"}`];
   if (judge.thinReasoning) notes.push("thinner than the two asked for");
   if (judge.retryReason) notes.push(`retried once (${judge.retryReason.replace(/_/g, " ")})`);
+  if (usage.tokens !== null) notes.push(`${number(usage.tokens)} tokens`);
+  notes.push(seconds(usage.elapsedMs));
   return `<article class="card">
-    <h3>${escapeHtml(judge.name)}</h3>
-    <p class="verdict ${judge.verdict === "guilty" ? "guilty" : "acquitted"}">${
+    <h3 class="display">${escapeHtml(judge.name)}</h3>
+    <p class="display verdict ${judge.verdict === "guilty" ? "guilty" : "acquitted"}">${
       VERDICT_LABEL[judge.verdict]
     }</p>
     <p class="speech">${escapeHtml(judge.reasoning)}</p>
     <p class="meta">${escapeHtml(judge.model ?? "—")} · ${escapeHtml(notes.join(" · "))}</p>
   </article>`;
+}
+
+/** One seat as it appears on the finding section: name over verdict, nothing else. */
+function seatChip(judge: JudgeOutcome): string {
+  const verdict =
+    judge.verdict === null
+      ? `<div class="absent">No readable verdict</div>`
+      : `<div class="display verdict ${judge.verdict === "guilty" ? "guilty" : "acquitted"}">${
+          VERDICT_LABEL[judge.verdict]
+        }</div>`;
+  return `<div class="seat"><div class="seat-name">${escapeHtml(judge.name)}</div>${verdict}</div>`;
 }
 
 function attemptRow(attempt: Attempt): string {
@@ -129,6 +165,32 @@ function attemptRow(attempt: Attempt): string {
   </tr>`;
 }
 
+/**
+ * One wave of the run: a caption, its calls, and its own totals directly beneath them.
+ *
+ * The same grouping the results panel shows, so the two tables can be read side by side.
+ * The wave's time is its calls summed rather than its wall clock — the calls in a wave
+ * overlap, and the caption says so.
+ */
+function stageRows(wave: StageRollup): string {
+  return `<tbody>
+  <tr class="stage"><td colspan="10">${escapeHtml(wave.caption)}</td></tr>
+  ${wave.attempts.map(attemptRow).join("\n")}
+  <tr class="subtotal">
+    <td colspan="3">${wave.attempts.length} call${wave.attempts.length === 1 ? "" : "s"}${
+      wave.failed > 0 ? `, ${wave.failed} failed` : ""
+    }</td>
+    <td class="n">${number(wave.promptTokens)}</td>
+    <td class="n">${number(wave.completionTokens)}</td>
+    <td class="n">${number(wave.reasoningTokens)}</td>
+    <td class="n">${number(wave.totalTokens)}</td>
+    <td class="n">${price(wave.costUsd)}</td>
+    <td class="n">${seconds(wave.elapsedMs)}</td>
+    <td></td>
+  </tr>
+</tbody>`;
+}
+
 function rawBlock(attempt: Attempt, index: number): string {
   let body: string;
   try {
@@ -144,47 +206,416 @@ function rawBlock(attempt: Attempt, index: number): string {
   </details>`;
 }
 
+/** The scales, drawn rather than fetched — the same mark the app's masthead carries. */
+const SCALES = `<svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 7.5 L16 27"/><path d="M10.5 27 L21.5 27"/><path d="M6 10.5 L26 10.5"/><path d="M6 10.5 L2.8 18"/><path d="M6 10.5 L9.2 18"/><path d="M2.8 18 A3.2 3.2 0 0 0 9.2 18"/><path d="M26 10.5 L22.8 18"/><path d="M26 10.5 L29.2 18"/><path d="M22.8 18 A3.2 3.2 0 0 0 29.2 18"/><circle cx="16" cy="5.6" r="1.7"/></svg>`;
+
+/** The gold rule under the verdict, from the results canvas. Two lines and a lozenge. */
+const GOLD_RULE = `<svg class="rule" width="240" height="16" viewBox="0 0 240 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M4 8 L104 8"/><path d="M136 8 L236 8"/><path d="M120 2.5 L125.5 8 L120 13.5 L114.5 8 Z" fill="currentColor" stroke="none"/><circle cx="108.5" cy="8" r="1.6" fill="currentColor" stroke="none"/><circle cx="131.5" cy="8" r="1.6" fill="currentColor" stroke="none"/></svg>`;
+
+/**
+ * The whole stylesheet, built from the same tokens the four screens are drawn from.
+ *
+ * Three families in the app; two here. Cinzel is embedded and carries the wordmark, the
+ * headings and the verdicts. EB Garamond is not, and the body falls back to the closest
+ * old-style serif the machine already has — the decision logged on 2026-08-23, and the
+ * reason it is the *display* face that travels: the verdict is what a reader looks at.
+ * The monospace stack is whatever the machine has, as it is in the app.
+ */
 const STYLES = `
-:root { color-scheme: light; }
-* { box-sizing: border-box; }
-body {
-  margin: 0; padding: 2.5rem 1.25rem 4rem;
-  background: #f4efe6; color: #2e2620;
-  font: 16px/1.65 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+@font-face {
+  font-family: "${FONT_FAMILY}";
+  font-style: normal;
+  /* One embedded weight, claimed across the range so nothing is synthesised from it. */
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(data:font/woff2;base64,${FONT_WOFF2_BASE64}) format("woff2");
 }
-.sheet { max-width: 60rem; margin: 0 auto; }
-header { border-bottom: 2px solid #8c7355; padding-bottom: 1.5rem; margin-bottom: 2rem; }
-h1 { font-size: 2.5rem; margin: 0 0 .25rem; letter-spacing: .01em; }
-h2 { font-size: 1.35rem; margin: 2.5rem 0 1rem; border-bottom: 1px solid #d8ccb8; padding-bottom: .4rem; }
-h3 { font-size: 1.05rem; margin: 0 0 .5rem; }
-.sub { color: #6b5c4a; margin: 0; }
-.outcome { margin: 1.75rem 0; padding: 1.5rem; border: 2px solid #8c7355; background: #fffdf8; text-align: center; }
-.outcome .title { font-size: 2.75rem; margin: 0; }
-.outcome .detail { color: #6b5c4a; margin: .35rem 0 0; }
-.guilty { color: #8a2b20; }
-.acquitted { color: #2f5d3f; }
-.unresolved { color: #7a6535; }
-.banner { padding: .85rem 1.1rem; border-left: 4px solid #a8842c; background: #fdf6e3; margin: 1.25rem 0; }
-.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
-.card { border: 1px solid #d8ccb8; background: #fffdf8; padding: 1.1rem 1.2rem; }
-.card.missing { background: #f7f2ea; border-style: dashed; }
-.side { font-weight: normal; color: #6b5c4a; font-size: .9rem; }
-.speech { margin: .5rem 0; white-space: pre-wrap; }
-.absent { margin: .5rem 0; color: #7a6535; font-style: italic; }
-.verdict { font-size: 1.3rem; margin: .25rem 0 .5rem; }
-.meta { font-size: .82rem; color: #6b5c4a; margin: .6rem 0 0; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; word-break: break-word; }
-.scroll { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: .85rem; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
-th, td { border-bottom: 1px solid #e0d6c4; padding: .45rem .6rem; text-align: left; white-space: nowrap; }
-th { background: #ece3d4; }
+
+:root {
+  color-scheme: light;
+${rootVariables()}
+  --font-display: "${FONT_FAMILY}", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 22px 15px 40px;
+  color: var(--ink);
+  font: 17px/1.65 var(--font-text);
+  background: linear-gradient(180deg, var(--frame-1) 0%, var(--frame-2) 16%, var(--frame-3) 50%, var(--frame-2) 84%, var(--frame-1) 100%);
+  background-attachment: fixed;
+}
+
+.display { font-family: var(--font-display); }
+
+/* The parchment sheet inside the bronze frame — the shape every screen of the app is
+ * drawn on, so the record and the app are visibly one product. */
+.sheet {
+  max-width: 62rem;
+  margin: 0 auto;
+  border: 2px solid var(--frame-edge);
+  border-radius: 4px;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--sheet-1) 0%, var(--sheet-2) 24%, var(--sheet-3) 58%, var(--sheet-3) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 241, 205, 0.45), 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+
+.body { padding: 26px 34px 30px; }
+
+/* The crimson masthead plate, as on every screen. */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 34px 18px;
+  color: var(--ink-on-plate);
+  background: linear-gradient(180deg, var(--crimson-1) 0%, var(--crimson-2) 55%, var(--crimson-3) 100%);
+  border-bottom: 2px solid var(--gold-rule);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.28);
+}
+
+header svg { color: var(--scales); flex-shrink: 0; }
+
+h1 {
+  margin: 0 0 3px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.sub { margin: 0; font-size: 14px; color: var(--masthead-sub); }
+
+h2 {
+  margin: 30px 0 12px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--crimson-1);
+}
+
+h3 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
+
+/* The verdict block: the app's first results panel, at rest. */
+.outcome {
+  margin: 4px 0 20px;
+  padding: 24px 30px 26px;
+  text-align: center;
+  border: 2px solid var(--crimson-1);
+  border-radius: 5px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6), 0 3px 10px rgba(120, 60, 20, 0.22);
+}
+
+.outcome .label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.outcome .title {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.outcome .rule { display: block; margin: 6px auto 2px; color: var(--gold); }
+.outcome .detail { margin: 0; font-size: 19px; color: var(--muted); }
+
+.guilty { color: var(--guilty); }
+.acquitted { color: var(--acquitted); }
+.unresolved { color: var(--gold-deep); }
+
+.banner {
+  margin: 12px 0;
+  padding: 13px 18px;
+  border: 1px solid var(--chip-thinking-border);
+  border-left: 4px solid var(--gold);
+  border-radius: 4px;
+  background: var(--highlight);
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  align-items: start;
+}
+
+/* Defense left, prosecution right — the order Side Select, the trial screen and the
+ * results panels all hold, so a side is in one place across the whole app. */
+.sides { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; align-items: start; }
+.side { display: flex; flex-direction: column; gap: 14px; }
+
+.card {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow: inset 0 1px 3px rgba(120, 95, 55, 0.1);
+}
+
+.card.side-defense { border-top: 3px solid var(--acquitted); }
+.card.side-prosecution { border-top: 3px solid var(--guilty); }
+
+.card.missing { background: var(--panel-inset); border-style: dashed; }
+.card.missing.side-defense, .card.missing.side-prosecution { border-top-style: solid; }
+
+.plaque {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.plaque.defense { color: var(--acquitted); }
+.plaque.prosecution { color: var(--guilty); }
+
+.speech { margin: 8px 0 0; white-space: pre-wrap; text-wrap: pretty; }
+.absent { margin: 8px 0 0; color: var(--gold-deep); font-style: italic; }
+
+.verdict { margin: 4px 0 6px; font-size: 22px; }
+
+.meta {
+  margin: 12px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--faint);
+  word-break: break-word;
+}
+
+/* The call table: crimson plate for the head, a stripe every other row, mono throughout —
+ * so what came back from the API never looks hand-written. */
+.scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow: 0 2px 5px rgba(120, 95, 55, 0.16);
+}
+
+table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 12.5px; }
+th, td { border-bottom: 1px solid var(--hairline); padding: 9px 10px; text-align: left; white-space: nowrap; }
+th {
+  background: linear-gradient(180deg, #a52424, #7a1515);
+  color: var(--ink-on-plate);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--gold-rule);
+}
 td.n, th.n { text-align: right; }
-tr.failed td { color: #8a2b20; }
-tfoot td { font-weight: bold; border-top: 2px solid #8c7355; }
-details { border: 1px solid #d8ccb8; background: #fffdf8; margin-bottom: .5rem; }
-summary { cursor: pointer; padding: .6rem .8rem; font-size: .85rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
-pre { margin: 0; padding: .8rem; background: #f7f2ea; overflow-x: auto; font-size: .78rem; white-space: pre-wrap; word-break: break-word; }
-footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid #d8ccb8; color: #6b5c4a; font-size: .85rem; }
-@media print { body { background: #fff; } .card, details { break-inside: avoid; } }
+tbody tr:nth-child(even) td { background: var(--panel-stripe); }
+tr.failed td { color: var(--guilty); }
+tfoot td { font-weight: 700; border-top: 2px solid var(--tile-border-accused); border-bottom: none; background: var(--panel-inset); }
+
+details {
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+}
+summary {
+  cursor: pointer;
+  padding: 9px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+pre {
+  margin: 0;
+  padding: 12px;
+  background: var(--panel-inset);
+  border-top: 1px solid var(--hairline);
+  overflow-x: auto;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- the five sections ------------------------------------------------------------------
+ * Each is one of the app's results panels, laid out as a section of a document rather than
+ * as a slide: there is no script in this file, so nothing can be paged through. The eyebrow
+ * above each heading says which panel it is, so a reader holding the file against the screen
+ * knows where they are without counting.
+ */
+.panel {
+  padding-bottom: 26px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.mark {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.panel h2 { margin-top: 4px; }
+
+/* The three seats under the finding: name over verdict, and nothing else to read. */
+.seats {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  margin-bottom: 14px;
+}
+
+.seat {
+  padding: 12px 18px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.seat-name { font-size: 15px; color: var(--muted); }
+.seat .verdict { font-size: 19px; margin: 2px 0 0; }
+.seat .absent { margin: 2px 0 0; font-size: 14px; }
+
+.charge {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 22px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--crimson-1);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.charge-label {
+  flex-shrink: 0;
+  padding-top: 3px;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--crimson-1);
+  white-space: nowrap;
+}
+
+.charge .speech { margin: 0; }
+
+.note { margin: 14px 0 0; font-size: 14px; color: var(--muted); }
+
+.callout {
+  margin: 14px 0 0;
+  padding: 12px 18px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-inset);
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+/* The wave caption, and the wave's own totals directly under the calls they add up. */
+tr.stage td {
+  background: var(--panel-inset);
+  color: var(--crimson-1);
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+tr.subtotal td {
+  background: var(--panel-inset);
+  font-weight: 700;
+  border-top: 1px solid var(--border-strong);
+}
+
+/* In closing. */
+.closing {
+  padding: 22px 30px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.closing .lead { margin: 0; font-size: 21px; line-height: 1.6; text-wrap: pretty; }
+.closing-note { margin: 12px 0 0; font-size: 16px; color: var(--muted); text-wrap: pretty; }
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 36px;
+  margin: 16px 0 0;
+  padding: 16px 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-inset);
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.fact dt {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--crimson-1);
+  white-space: nowrap;
+}
+
+.fact dd { margin: 0; font-size: 16px; text-align: right; }
+
+.appendix .note { max-width: 44em; margin-bottom: 14px; }
+
+footer {
+  margin-top: 30px;
+  padding: 18px 34px 22px;
+  border-top: 1px solid var(--border);
+  background: rgba(232, 220, 186, 0.75);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+footer p { margin: 0 0 10px; }
+footer p:last-child { margin-bottom: 0; }
+footer .licence { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+
+@media (max-width: 720px) {
+  body { padding: 8px 8px 24px; }
+  .body { padding: 18px 16px 22px; }
+  header { padding: 16px 16px 14px; }
+  footer { padding: 16px; }
+  .sides { grid-template-columns: 1fr; }
+  .facts { grid-template-columns: 1fr; }
+  .outcome .title { font-size: 44px; }
+}
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .sheet { border: none; box-shadow: none; max-width: none; }
+  .card, details, .fact { break-inside: avoid; }
+  /* One panel to a page, so the printed record pages the way the screen does. */
+  .panel { break-after: page; border-bottom: none; }
+  .panel:last-child { break-after: auto; }
+}
 `;
 
 /** Renders one run as a standalone document. Pure: same record, same bytes. */
@@ -215,9 +646,23 @@ export function buildExportHtml(record: RunRecord): string {
         .join("; ")}.`,
     );
   }
+  if (record.benchLineage.length > 0) {
+    notices.push(
+      `Two seats on the bench answered on models from one maker: ${record.benchLineage
+        .map((c) => `${escapeHtml(c.maker)} (${c.judges.map(escapeHtml).join(", ")})`)
+        .join("; ")}. Judges built from shared weights can agree for reasons that are not judicial.`,
+    );
+  }
   if (totals.usageMissing) {
     notices.push("At least one call reported no token usage, so the totals below are a floor.");
   }
+
+  const { defense, prosecution } = bySide(record.statements);
+  const closing = closingLines(record);
+  const waves = stages(record);
+  const section = (index: number): string =>
+    `<div class="mark mono">Panel ${index + 1} of ${PANELS.length}</div>
+<h2>${escapeHtml(PANELS[index].heading)}</h2>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -231,48 +676,76 @@ export function buildExportHtml(record: RunRecord): string {
 <div class="sheet">
 
 <header>
-  <h1>The Tribunal</h1>
-  <p class="sub">${escapeHtml(record.defendant.name)}, defendant · ${escapeHtml(
-    record.startedAt,
-  )} · ${escapeHtml(record.mode)} mode</p>
+  ${SCALES}
+  <div>
+    <h1>The Tribunal</h1>
+    <p class="sub">${escapeHtml(runSubtitle(record))}</p>
+  </div>
 </header>
 
+<div class="body">
+
+<!-- The five sections below are the app's five results panels, in the app's own order and
+     under the app's own headings, so that this file can be read against the screen that
+     produced it one panel at a time (specs.md Part 3). What follows them is an appendix:
+     the raw responses, which have no panel because no screen shows them. -->
+
+<section class="panel">
+${section(0)}
 <div class="outcome">
+  <div class="label">The tribunal finds</div>
   <p class="title ${head.tone}">${escapeHtml(head.title)}</p>
+  ${GOLD_RULE}
   <p class="detail">${escapeHtml(head.detail)}</p>
 </div>
 
 ${notices.map((notice) => `<p class="banner">${notice}</p>`).join("\n")}
 
-<h2>The charge</h2>
-<div class="card"><p class="speech">${escapeHtml(record.chargeSheet)}</p>
-<p class="meta">${record.chargeSheetWords} words</p></div>
+<div class="seats">${record.judges.map(seatChip).join("\n")}</div>
 
-<h2>The casting</h2>
-<div class="card"><p class="speech">${record.casting
-    .map((c) => `${escapeHtml(c.name)} — ${escapeHtml(SIDE_NAME[c.side])}`)
-    .join("\n")}</p></div>
+<div class="charge">
+  <span class="display charge-label">The charge</span>
+  <div>
+    <p class="speech">${escapeHtml(record.chargeSheet)}</p>
+    <p class="meta">${record.chargeSheetWords} words · ${escapeHtml(
+      record.defendant.name,
+    )}, the accused, never argues</p>
+  </div>
+</div>
 
-<h2>The statements</h2>
-<div class="grid">${record.statements.map(statementBlock).join("\n")}</div>
+<p class="note">${escapeHtml(findingNote())}</p>
+</section>
 
-<h2>The bench</h2>
+<section class="panel">
+${section(1)}
 <div class="grid">${
     record.judges.length > 0
       ? record.judges.map(judgeBlock).join("\n")
       : `<article class="card missing"><p class="absent">The bench never heard this case.</p></article>`
   }</div>
+<p class="callout">${escapeHtml(benchNote(record.mode))}</p>
+</section>
 
-<h2>Every call</h2>
+<section class="panel">
+${section(2)}
+<div class="sides">
+  <div class="side">${defense.map(statementBlock).join("\n")}</div>
+  <div class="side">${prosecution.map(statementBlock).join("\n")}</div>
+</div>
+<p class="callout">${escapeHtml(advocatesNote())}</p>
+</section>
+
+<section class="panel">
+${section(3)}
 <div class="scroll"><table>
 <thead><tr>
-  <th>role</th><th>attempt</th><th>model</th>
-  <th class="n">prompt</th><th class="n">completion</th><th class="n">reasoning</th>
+  <th>role</th><th>try</th><th>model</th>
+  <th class="n">prompt</th><th class="n">answer</th><th class="n">thinking</th>
   <th class="n">total</th><th class="n">price</th><th class="n">time</th><th>result</th>
 </tr></thead>
-<tbody>${record.attempts.map(attemptRow).join("\n")}</tbody>
+${waves.map(stageRows).join("\n")}
 <tfoot><tr>
-  <td colspan="3">${totals.calls} call${totals.calls === 1 ? "" : "s"}</td>
+  <td colspan="3">${totals.calls} call${totals.calls === 1 ? "" : "s"} · the whole run</td>
   <td class="n">${number(totals.promptTokens)}</td>
   <td class="n">${number(totals.completionTokens)}</td>
   <td class="n">${number(totals.reasoningTokens)}</td>
@@ -282,9 +755,34 @@ ${notices.map((notice) => `<p class="banner">${notice}</p>`).join("\n")}
   <td></td>
 </tr></tfoot>
 </table></div>
+</section>
 
+<section class="panel">
+${section(4)}
+<div class="closing">
+  <p class="lead">${escapeHtml(closing.lead)}</p>
+  ${closing.note === "" ? "" : `<p class="closing-note">${escapeHtml(closing.note)}</p>`}
+</div>
+<dl class="facts">${summaryRows(record)
+    .map(
+      (row) =>
+        `<div class="fact"><dt class="display">${escapeHtml(row.label)}</dt><dd${
+          row.tone ? ` class="display ${row.tone}"` : ""
+        }>${escapeHtml(row.value)}</dd></div>`,
+    )
+    .join("\n")}</dl>
+</section>
+
+<section class="panel appendix">
+<div class="mark mono">Appendix · not a panel</div>
 <h2>Raw responses</h2>
+<p class="note">Every reply as it arrived, including the failures. No screen shows these;
+they are here because a record of what a model returned is the only thing that makes the
+numbers above checkable rather than merely stated.</p>
 ${record.attempts.map(rawBlock).join("\n")}
+</section>
+
+</div>
 
 <footer>
   <p>The three judges are <strong>fictional simulations</strong>, written for this
@@ -295,6 +793,7 @@ ${record.attempts.map(rawBlock).join("\n")}
   from the API's own response, never estimated. Run started ${escapeHtml(
     record.startedAt,
   )}, finished ${escapeHtml(record.finishedAt)}.</p>
+  <p class="licence">${escapeHtml(FONT_NOTICE)}</p>
 </footer>
 
 </div>

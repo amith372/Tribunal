@@ -71,6 +71,9 @@
   --panel: #faf4dd;
   --panel-inset: #f3ead0;
   --panel-raised: #f8f1da;
+  /* Every second row of the call table, so a long row of numbers stays trackable across
+   * ten columns. The exported record carries the same stripe. */
+  --panel-stripe: #f5edd2;
   --highlight: #f6e6b8;
   --border: #d9c9a3;
   --hairline: #e2d5b2;
@@ -148,6 +151,12 @@
   --rail-on: #ffe9a8;
   --rail-off: #dbab8e;
   --scales: #f0c96a;
+
+  /* ---- the results panels ---------------------------------------------------------
+   * Five panels with a dot apiece: the one being read is crimson, the rest are the
+   * parchment's own tan. Dimmed rather than hidden, like every other inactive control.
+   */
+  --dot-off: #cbb98f;
 
   /* ---- portrait frames ------------------------------------------------------------ */
   --tile-border: #c3ab7d;

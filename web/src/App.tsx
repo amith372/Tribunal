@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AppFrame } from "./components/AppFrame.js";
 import { Masthead } from "./components/Masthead.js";
 import { Panel } from "./components/Panel.js";
+import { Results } from "./screens/Results.js";
 import { Run } from "./screens/Run.js";
 import { Setup } from "./screens/Setup.js";
 import { SideSelect } from "./screens/SideSelect.js";
@@ -38,7 +39,7 @@ import "./styles/tokens.css";
  * nowhere else.
  */
 
-type Screen = "setup" | "sides" | "run";
+type Screen = "setup" | "sides" | "run" | "results";
 
 interface ActiveRun {
   readonly session: RunSession;
@@ -124,6 +125,25 @@ export function App() {
     setSides({});
   };
 
+  /**
+   * Leaving a run behind, from either of the two screens that show one.
+   *
+   * The id is dropped first: leaving means the tab is no longer watching that run, and a
+   * stale id would pull the next reload back into it. Nothing about the run is kept —
+   * specs.md Part 3, the exported file is the record, and a user who wanted one has already
+   * downloaded it by the time this is reachable.
+   */
+  const leaveRun = () => {
+    rememberRun(null);
+    run?.session.close();
+    setRun(null);
+    setScreen("setup");
+  };
+
+  if (screen === "results" && run !== null) {
+    return <Results session={run.session} onNewCase={leaveRun} />;
+  }
+
   if (screen === "run" && run !== null) {
     return (
       <Run
@@ -131,14 +151,10 @@ export function App() {
         characters={characters}
         judgeNames={health.judges}
         request={run.request}
-        onNewCase={() => {
-          // The id is dropped first: leaving this screen means the tab is no longer
-          // watching that run, and a stale id would pull the next reload back into it.
-          rememberRun(null);
-          run.session.close();
-          setRun(null);
-          setScreen("setup");
-        }}
+        onNewCase={leaveRun}
+        // The verdict panels read the finished record off the same session this screen is
+        // watching, so moving between the two costs nothing and starts nothing.
+        onSeeVerdict={() => setScreen("results")}
       />
     );
   }

@@ -21,7 +21,8 @@
     "record:demo": "tsx scripts/record-demo.ts",
     "trial:run": "tsx scripts/trial-run.ts",
     "rehearse": "tsx scripts/rehearse.ts",
-    "gate:run": "tsx scripts/gate-run.ts"
+    "gate:run": "tsx scripts/gate-run.ts",
+    "export:log": "tsx scripts/export-from-log.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

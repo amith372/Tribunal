@@ -16,7 +16,7 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 | Models | OpenRouter, free (`:free`) models only, identifiers server-side |
 | Persistence | **None** — the exported HTML file is the run record |
 | Deploy | Render free Web Service, kept awake by an external keep-warm pinger; `OPENROUTER_API_KEY` is a Render env var, never in the repo |
-| Tests | Vitest — pre-flight, judge parser, aggregation, model guard, and the client's mirror of the pre-flight |
+| Tests | Vitest in **both** workspaces; `npm test` runs both. Server: pre-flight, judge parser, aggregation, model guard, the export and its palette against `tokens.css`. Web: the sentences the results panels derive from a record — and those same sentences are held against the server's copy from the *server* suite, since the exported file and the panels must word a run identically. The client's pre-flight mirror is tested from the *server* suite on purpose — it exists to agree with the server's pre-flight, and a test beside only one of them cannot check agreement |
 | Gate | `.githooks/pre-commit` refuses a commit that leaks a key, names a model in `web/src`, or fails typecheck, lint or tests. Enable per clone with `npm run hooks`; ~13s |
 
 ## Working rules
