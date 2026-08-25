@@ -7,6 +7,7 @@
  */
 
 import "./env.js";
+import { archiveFromEnv } from "./archive.js";
 import { createApp } from "./app.js";
 import { getServerConfig } from "./config.js";
 import { DataError, loadData, type TribunalData } from "./data.js";
@@ -26,7 +27,8 @@ try {
 }
 
 const config = getServerConfig();
-const app = createApp({ data });
+const archive = archiveFromEnv();
+const app = createApp({ data, archive });
 
 const server = app.listen(config.port, () => {
   console.log(`The Tribunal — server on http://localhost:${config.port}`);
@@ -35,6 +37,9 @@ const server = app.listen(config.port, () => {
   console.log(`  run:    POST /api/run — an SSE stream, capped at ${RUN_TIMEOUT_MS / 1000}s`);
   if (!config.apiKey) {
     console.log("  note:   OPENROUTER_API_KEY is not set — model calls will refuse, health is fine.");
+  }
+  if (!archive) {
+    console.log("  note:   MONGODB_URI is not set — runs are not archived.");
   }
 });
 

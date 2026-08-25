@@ -37,7 +37,6 @@ export function Portrait({
   motion = "none",
   /** Applied to the image layers, so a caller can frame the portrait however it likes. */
   imageClassName,
-  className,
   /** The letter shown if the image is missing or fails to load. */
   fallback,
 }: {
@@ -46,7 +45,6 @@ export function Portrait({
   size: number;
   motion?: Motion;
   imageClassName?: string;
-  className?: string;
   fallback?: string;
 }) {
   // `shown` is what is on top; `fading` is the layer still underneath it, if any. `v`
@@ -69,7 +67,6 @@ export function Portrait({
   }, [layers.v, layers.fading]);
 
   const classes = ["portrait", `motion-${motion}`];
-  if (className) classes.push(className);
 
   return (
     <span

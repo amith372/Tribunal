@@ -1,5 +1,5 @@
 /**
- * The exported file — which, there being no database, is the run record itself.
+ * The exported file — the portable copy of a run, and the only one that leaves here.
  *
  * These tests build a record by running the real pipeline against scripted callers,
  * then assert against the rendered file. What they are really protecting is three

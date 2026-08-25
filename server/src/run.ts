@@ -283,7 +283,16 @@ export async function executeRun(options: ExecuteRunOptions): Promise<RunRecord>
   });
 }
 
-/** Folds the run and sends the record that closes the stream — one record, one emit. */
+/**
+ * Folds the run and sends the record that closes the stream — one record, one emit.
+ *
+ * The full record, raw response bodies included, is what is emitted: the buffer holds
+ * this same object for the export route and for whoever calls `executeRun` to save. What
+ * a *browser* is allowed to see off the wire is a separate concern, handled where the
+ * buffer's events are turned into SSE frames (`app.ts`'s `stream`, via
+ * `record-view.ts`) — not here, because trimming here would trim the copy the buffer
+ * keeps for the export too.
+ */
 function finish(emit: RunEmit, input: Parameters<typeof aggregate>[0]): RunRecord {
   const record = aggregate(input);
   emit("done", record);

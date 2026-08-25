@@ -21,7 +21,6 @@ export function Button({
   onClick,
   /** The forward arrow the canvas puts on a step-advancing action. */
   trailingArrow = false,
-  type = "button",
   title,
 }: {
   children: ReactNode;
@@ -29,7 +28,6 @@ export function Button({
   disabled?: boolean;
   onClick?: () => void;
   trailingArrow?: boolean;
-  type?: "button" | "submit";
   /** Why a disabled button is disabled, for a pointer. The screen says it in words too. */
   title?: string;
 }) {
@@ -38,7 +36,7 @@ export function Button({
 
   return (
     <button
-      type={type}
+      type="button"
       className={classes.join(" ")}
       disabled={disabled}
       onClick={onClick}

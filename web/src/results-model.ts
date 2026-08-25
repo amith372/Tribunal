@@ -136,9 +136,11 @@ export interface Headline {
  * written out on its own: there is no branch here in which a verdict could be printed for
  * a run that never reached one, because three of the four cases have no verdict field at
  * all to print from.
+ *
+ * Takes just the outcome, not a whole record — the archive list row builds a headline
+ * from an `ArchiveSummary`, which carries an outcome and nothing else this needs.
  */
-export function headline(record: RunRecordView): Headline {
-  const outcome = record.outcome;
+export function headline({ outcome }: Pick<RunRecordView, "outcome">): Headline {
   switch (outcome.kind) {
     case "verdict":
       return {

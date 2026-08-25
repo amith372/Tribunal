@@ -136,31 +136,12 @@ const DEFAULTS = {
 };
 
 /**
- * **Which of these have actually been watched writing, and which have not.**
- *
- * The standing rule is that a spare is never a guess — the pools carried only models
- * that had produced usable output in a real trial. Widening to every usable free
- * identifier on the roster breaks that for the new entries, so rather than let the
- * distinction quietly disappear it is written down. Vetted on 2026-08-21 or earlier:
- * the three original judges, `laguna-xs-2.1`, and the advocates `gemma-4-26b-a4b`,
- * `dots-3-note-preview`, `nemotron-3-nano-30b`, `lfm-2.5-2.6b`, `nemotron-3.5-lightning`.
- * Vetted 2026-08-22 by the router resolving it into Grey Worm's seat, where it returned a
- * clean 67-word statement on the case: `nemotron-3-super-120b`. The live run later that day
- * vetted two more: `nemotron-3-nano-omni-30b-a3b-reasoning` wrote Cersei a clean 89-word
- * statement, and `laguna-s-2.1` wrote Tyrion a real statement on the case — usable, but at
- * 232 words against a 150 cap it is the longest-winded model measured so far.
- *
- * One entry is still pinned on the roster listing alone and unproven. It sits as depth for
- * a second attempt, which is where an unproven model does least harm and most good.
- */
-export const UNVETTED_MODELS: ReadonlySet<string> = new Set([
-  "nvidia/nemotron-nano-9b-v2:free",
-]);
-
-/**
  * Models this app has measured and will not seat, **as data rather than as a comment.**
  *
- * The exclusions above were written down and then quietly unenforceable, because the one
+ * The standing rule for the pools above is that a spare is never a guess — every entry in
+ * `DEFAULTS` has been watched writing usable output in a real trial before being seated,
+ * not picked off the roster listing alone. This list was written down and then quietly
+ * unenforceable, because the one
  * route into a seat that no allowlist can guard is `openrouter/free`: the request names the
  * router, which is permitted, and the *response* names whatever the router chose. Twice on
  * 2026-08-22 that was a model on this list. Once it was the content-safety classifier, which

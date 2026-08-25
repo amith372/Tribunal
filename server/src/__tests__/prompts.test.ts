@@ -235,8 +235,8 @@ describe("a judge's prompt", () => {
   });
 
   it("gives no relations and no character descriptions", () => {
-    // spec_logs 2026-08-11: judges receive the charge and the statements, not the
-    // character relations.
+    // specs.md Part 1: the bench hears the four statements labelled by side, not the
+    // character relations behind them.
     const prompt = text(buildJudgePrompt(run, barak, STATEMENTS));
     for (const relation of data.relations) expect(prompt).not.toContain(relation.text);
     for (const character of data.characters) expect(prompt).not.toContain(character.description);

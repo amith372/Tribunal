@@ -40,6 +40,7 @@ import {
   type Mode,
 } from "./config.js";
 import type { RunRecord } from "./aggregate.js";
+import { type RunArchive } from "./archive.js";
 import type { TribunalData } from "./data.js";
 import { buildExportHtml, exportFileName } from "./export.js";
 import { coldModels } from "./model-health.js";
@@ -50,7 +51,9 @@ import {
   preflight,
   SEARCHED_NAMES,
 } from "./preflight.js";
+import { toRunRecordView } from "./record-view.js";
 import { executeRun, type RunEmit } from "./run.js";
+import type { RunEvent } from "./run-buffer.js";
 import { RunBuffer } from "./run-buffer.js";
 import { appendRun } from "./runs-log.js";
 import { openSse, resumeFrom } from "./sse.js";
@@ -67,7 +70,17 @@ export interface AppOptions {
   readonly timeoutMs?: number;
   /** Off in tests: a debugging log is not worth a file write per assertion. */
   readonly logRuns?: boolean;
+  /** `null` (the default) when no archive is configured — the archive routes 404. */
+  readonly archive?: RunArchive | null;
 }
+
+const NOT_HELD_OR_ARCHIVED =
+  "That run is not being held or archived. If you downloaded the export while it was " +
+  "open, that file is still the record.";
+
+const NO_ARCHIVE_CONFIGURED = "This server has no archive configured.";
+
+const ARCHIVE_LIST_CAP = 100;
 
 /** The body shape. Everything is `unknown` — the pre-flight is what makes it a run. */
 interface RunRequestBody {
@@ -88,6 +101,7 @@ function readMode(value: unknown): Mode {
 export function createApp(options: AppOptions): Express {
   const { data } = options;
   const buffer = options.buffer ?? new RunBuffer();
+  const archive = options.archive ?? null;
   const app = express();
   app.use(express.json({ limit: "64kb" }));
 
@@ -233,6 +247,14 @@ export function createApp(options: AppOptions): Express {
     })
       .then((record) => {
         if (options.logRuns !== false) void appendRun(runId, record);
+        // Fire-and-forget, warn-and-swallow: a database outage must never fail a run
+        // that has already spent seven rationed calls. Same discipline as
+        // `runs-log.ts`'s own write, and the same reason.
+        if (archive) {
+          void archive.save(runId, record, data.relations).catch((error: unknown) => {
+            console.warn(`Could not archive run ${runId}: ${(error as Error).message}`);
+          });
+        }
       })
       .catch((error: unknown) => {
         // Only a fault in the app itself reaches here — everything a model did is an
@@ -257,9 +279,10 @@ export function createApp(options: AppOptions): Express {
       res.status(404).json({
         ok: false,
         error:
-          "That run is not being held any more. Runs are kept in memory while they are " +
-          "in flight and for a few minutes after; they do not survive a restart, and none " +
-          "is stored. Start a new run.",
+          "That run's live connection is not being held any more — a run is kept in " +
+          "memory only while it is in flight and for a few minutes after, and this " +
+          "stream does not come back. If the run finished, it was archived and can be " +
+          "found from the archive screen; otherwise, start a new run.",
       });
       return;
     }
@@ -269,51 +292,135 @@ export function createApp(options: AppOptions): Express {
   /**
    * The run record, as the file the user keeps.
    *
-   * specs.md Part 3: there is no database, and the exported HTML file *is* the run record.
-   * It is rendered here rather than in the browser for two reasons that are really one —
-   * `buildExportHtml` is a pure function of the same `RunRecord` the panels render, so the
-   * file's numbers cannot disagree with the screen's, and being server-side it is reachable
-   * by the test suite instead of checkable only by someone opening a download. The browser
-   * also does not have everything the record needs: the raw response bodies are on the
-   * attempts the server holds.
+   * specs.md Part 3: the exported HTML file *is* the run record, self-contained and
+   * rebuildable from the archive as well as from the live buffer. It is rendered here
+   * rather than in the browser for two reasons that are really one — `buildExportHtml` is
+   * a pure function of the same `RunRecord` the panels render, so the file's numbers
+   * cannot disagree with the screen's, and being server-side it is reachable by the test
+   * suite instead of checkable only by someone opening a download. The browser also does
+   * not have everything the record needs: the raw response bodies are on the attempts the
+   * server holds.
    *
-   * It is bounded by the same hold as the stream — a run is kept while in flight and for a
-   * few minutes after, and then it is gone, because nothing about a run is stored. The
-   * client asks for this the moment the run finishes rather than when the button is pressed,
-   * so a reader who takes their time over the five panels is not the one who pays for that.
+   * The buffer is tried first — a run just finished is served from memory, no database
+   * round trip needed — and the archive only when the buffer has let it go. This fixes a
+   * real limitation the buffer-only version had: an export used to be unreachable the
+   * moment the ten-minute hold lapsed.
    */
   app.get("/api/run/:id/export", (req: Request, res: Response) => {
     // Express 5 types a route parameter as possibly repeated; this one never is.
-    const held = buffer.get(req.params.id as string);
-    if (!held) {
-      res.status(404).json({
-        ok: false,
-        error:
-          "That run is not being held any more. Runs are kept in memory while they are in " +
-          "flight and for a few minutes after; none is stored, and none survives a restart. " +
-          "If you exported the run while it was open, that file is still the record.",
-      });
+    const runId = req.params.id as string;
+    const held = buffer.get(runId);
+
+    if (held) {
+      // The closing event carries the record. A run still under way has no record to
+      // export — and a run that ended in an `error` never produced one at all.
+      const done = held.events.find((event) => event.event === "done");
+      if (!done) {
+        res.status(409).json({
+          ok: false,
+          error: held.finished
+            ? "That run stopped before it produced a record, so there is nothing to export."
+            : "That run has not finished yet. The record exists once the bench has ruled.",
+        });
+        return;
+      }
+      sendExport(res, done.data as RunRecord);
       return;
     }
 
-    // The closing event carries the record. A run still under way has no record to export —
-    // and a run that ended in an `error` never produced one at all.
-    const done = held.events.find((event) => event.event === "done");
-    if (!done) {
-      res.status(409).json({
-        ok: false,
-        error: held.finished
-          ? "That run stopped before it produced a record, so there is nothing to export."
-          : "That run has not finished yet. The record exists once the bench has ruled.",
-      });
+    if (archive) {
+      archive
+        .get(runId)
+        .then((found) => {
+          if (!found) {
+            res.status(404).json({ ok: false, error: NOT_HELD_OR_ARCHIVED });
+            return;
+          }
+          sendExport(res, found.record);
+        })
+        .catch((error: unknown) => {
+          res.status(500).json({ ok: false, error: (error as Error).message });
+        });
       return;
     }
 
-    const record = done.data as RunRecord;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    // Named where the file is built, so the name and the record are decided in one place.
-    res.setHeader("Content-Disposition", `attachment; filename="${exportFileName(record)}"`);
-    res.send(buildExportHtml(record));
+    res.status(404).json({ ok: false, error: NOT_HELD_OR_ARCHIVED });
+  });
+
+  /**
+   * POST /api/archive/list — summaries for the run ids a browser already holds.
+   *
+   * POST rather than GET: the id list can be long, and the answer is not cacheable. The
+   * ids themselves come from the browser's own `localStorage` — specs.md Part 3's
+   * per-browser rule — so this only resolves ids a browser already remembers into
+   * something to render; it is not a way to discover a run whose id you do not hold.
+   */
+  app.post("/api/archive/list", (req: Request, res: Response) => {
+    if (!archive) {
+      res.status(404).json({ ok: false, error: NO_ARCHIVE_CONFIGURED });
+      return;
+    }
+    const body = req.body as { ids?: unknown };
+    if (!Array.isArray(body.ids)) {
+      res.status(400).json({ ok: false, error: '"ids" must be an array of run ids.' });
+      return;
+    }
+    const ids = body.ids
+      .filter((id): id is string => typeof id === "string")
+      .slice(0, ARCHIVE_LIST_CAP);
+
+    archive
+      .list(ids)
+      .then((runs) => res.json({ ok: true, runs }))
+      .catch((error: unknown) => {
+        res.status(500).json({ ok: false, error: (error as Error).message });
+      });
+  });
+
+  /**
+   * GET /api/archive/:id — an archived run's record, shaped exactly as a live run's
+   * `done` event is (`record-view.ts`): no raw response bodies, no judge `rawText`. One
+   * shape, whether a run is read live or read back later.
+   */
+  app.get("/api/archive/:id", (req: Request, res: Response) => {
+    if (!archive) {
+      res.status(404).json({ ok: false, error: NO_ARCHIVE_CONFIGURED });
+      return;
+    }
+    const runId = req.params.id as string;
+    archive
+      .get(runId)
+      .then((found) => {
+        if (!found) {
+          res.status(404).json({ ok: false, error: "No archived run has that id." });
+          return;
+        }
+        res.json({ ok: true, runId: found.runId, record: toRunRecordView(found.record) });
+      })
+      .catch((error: unknown) => {
+        res.status(500).json({ ok: false, error: (error as Error).message });
+      });
+  });
+
+  /** GET /api/archive/:id/export — the same HTML export, rebuilt from the archive. */
+  app.get("/api/archive/:id/export", (req: Request, res: Response) => {
+    if (!archive) {
+      res.status(404).json({ ok: false, error: NO_ARCHIVE_CONFIGURED });
+      return;
+    }
+    const runId = req.params.id as string;
+    archive
+      .get(runId)
+      .then((found) => {
+        if (!found) {
+          res.status(404).json({ ok: false, error: "No archived run has that id." });
+          return;
+        }
+        sendExport(res, found.record);
+      })
+      .catch((error: unknown) => {
+        res.status(500).json({ ok: false, error: (error as Error).message });
+      });
   });
 
   // In production the Vite build sits next to the server build and is served from here.
@@ -330,6 +437,27 @@ export function createApp(options: AppOptions): Express {
 }
 
 /**
+ * The buffer keeps the full record — raw response bodies included — for the export
+ * route. The browser must not see that much: a `done` event is reshaped through
+ * `toRunRecordView` on its way onto the wire, and nothing else is.
+ */
+function forWire(event: RunEvent): RunEvent {
+  if (event.event !== "done") return event;
+  return { ...event, data: toRunRecordView(event.data as RunRecord) };
+}
+
+/**
+ * Writes a record out as the download the export routes promise — the full record, raw
+ * response bodies included, unlike what reaches the browser off the SSE wire.
+ */
+function sendExport(res: Response, record: RunRecord): void {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  // Named where the file is built, so the name and the record are decided in one place.
+  res.setHeader("Content-Disposition", `attachment; filename="${exportFileName(record)}"`);
+  res.send(buildExportHtml(record));
+}
+
+/**
  * Attaches one connection to a run: replay what it missed, then follow it live, then end
  * when the record closes the run.
  *
@@ -339,7 +467,7 @@ export function createApp(options: AppOptions): Express {
 function stream(res: Response, buffer: RunBuffer, runId: string, fromSeq: number): void {
   const connection = openSse(res);
   const unsubscribe = buffer.subscribe(runId, fromSeq, (event) => {
-    connection.send(event);
+    connection.send(forWire(event));
     if (event.event === "done" || event.event === "error") connection.close();
   });
 

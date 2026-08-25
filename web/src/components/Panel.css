@@ -14,14 +14,6 @@
   box-shadow: var(--shadow-card);
 }
 
-.panel-highlight {
-  background: var(--highlight);
-  /* The chosen thing is bordered in crimson, not merely tinted: on a parchment sheet a
-   * tint alone is a weak signal, and this is the screen's most important state. */
-  border: 2px solid var(--crimson-1);
-  box-shadow: 0 1px 3px rgba(120, 60, 20, 0.2);
-}
-
 .panel.is-sunken {
   box-shadow: var(--shadow-panel-inset);
 }

@@ -10,11 +10,11 @@
  * the raw response bodies, which Part 3 requires the record to carry.
  *
  * **It is fetched when the run finishes, not when the button is pressed.** The server holds
- * a finished run for ten minutes (`run-buffer.ts`) and then lets it go — deliberately, since
- * nothing about a run is stored. A user who reads five panels slowly and then presses Export
- * would otherwise find the record gone at the moment they asked for it. Asking as soon as
- * the record lands moves the whole ten-minute window to the part of the run where it cannot
- * be missed, and what the button then does is purely local.
+ * a finished run in memory for ten minutes (`run-buffer.ts`) and then lets it go; past that
+ * the file is rebuilt from the archive instead, so the record itself is no longer what is at
+ * risk. What asking early still buys is that the file is already in hand when the button is
+ * pressed — the press is then purely local, and it works whether or not the server is still
+ * reachable, which is the one thing no fallback route can promise.
  *
  * **Memoised at module scope, for the same reason `run-session.ts` is.** React runs effects
  * twice in development on purpose, and a panel that mounts, unmounts and mounts again would
@@ -47,7 +47,17 @@ function filenameFrom(header: string | null): string {
 }
 
 async function request(runId: string): Promise<ExportedRecord> {
-  const response = await fetch(`/api/run/${encodeURIComponent(runId)}/export`);
+  const id = encodeURIComponent(runId);
+  let response = await fetch(`/api/run/${id}/export`);
+
+  // The buffer is tried first — a run just finished is served from memory, no extra
+  // round trip. A 404 there means the buffer has let the run go; the archive is tried
+  // next, once, before giving up. Any other refusal (still in flight, never existed)
+  // already says the right thing and is not worth a second request.
+  if (response.status === 404) {
+    response = await fetch(`/api/archive/${id}/export`);
+  }
+
   if (!response.ok) {
     // The server's own words: it knows whether the run is still held, still running, or
     // simply never existed, and each of those is a different thing to tell the user.
@@ -57,6 +67,7 @@ async function request(runId: string): Promise<ExportedRecord> {
         `The server answered HTTP ${response.status} when asked for this run's record.`,
     );
   }
+
   return {
     filename: filenameFrom(response.headers.get("content-disposition")),
     html: await response.text(),
@@ -82,8 +93,8 @@ export function exportOf(runId: string): Promise<ExportedRecord> {
  * Saves the record to disk.
  *
  * A blob URL rather than a link to the endpoint, because the file is already here: the
- * download then works even if the server's hold has since lapsed, which is the whole point
- * of fetching it early. The object URL is released on the next frame — the download has
+ * download then works without a second request, which is the point of fetching it early.
+ * The object URL is released on the next frame — the download has
  * started by then, and holding it would keep 70 KB alive for the life of the tab.
  */
 export function saveExport(file: ExportedRecord): void {

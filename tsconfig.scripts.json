@@ -1,8 +1,8 @@
 {
-  // The root `scripts/` folder — currently just the image optimiser, which is a build
-  // tool and never shipped. It sits outside both workspaces and imports from
-  // `server/src` for the character roster, so it gets its own config rather than being
-  // pulled into either build. Mirrors `server/tsconfig.scripts.json`.
+  // The root `scripts/` folder — build tools that are never shipped. It sits outside
+  // both workspaces and imports from `server/src` for the character roster, so it gets
+  // its own config rather than being pulled into either build. Mirrors
+  // `server/tsconfig.scripts.json`.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],

@@ -1,10 +1,11 @@
 /**
  * export.ts — the run record as one self-contained HTML file.
  *
- * specs.md Part 3: "There is no database; the exported HTML file is the run record."
- * This is therefore not a report *about* a run, it is the only durable trace one leaves
- * — the thing that shows the token numbers were read from real responses and the
- * verdicts were read from models rather than invented.
+ * specs.md Part 3: the exported HTML file is the portable copy of a run — the one a
+ * reader keeps and can submit, and the only trace that leaves this server at all. The
+ * archive is durable, but it is ours; this file is theirs. It is therefore not a report
+ * *about* a run, it is the run — the thing that shows the token numbers were read from
+ * real responses and the verdicts were read from models rather than invented.
  *
  * Five properties it holds to:
  *

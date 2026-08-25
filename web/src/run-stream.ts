@@ -234,8 +234,10 @@ async function handleNotOk(
   if (!starting && response.status === 404) {
     handlers.onLost(
       body?.error ??
-        "That run is not being held any more. Runs live in memory while they are in " +
-          "flight and for a few minutes after, and none is stored.",
+        "That run's live connection is not being held any more. Runs live in memory " +
+          "while they are in flight and for a few minutes after, and that stream does " +
+          "not come back. If the run finished, it was archived and can be found from " +
+          "the archive screen.",
     );
     return true;
   }

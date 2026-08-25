@@ -197,8 +197,9 @@ const JUDGE_GROUNDING = [
  * description, its standing relationship to the defendant, and its assigned side.
  *
  * The relation comes from `relations.md`, which describes standing relationships only —
- * the charge sheet supplies what happened. Keeping those apart is what stops a data
- * file from deciding the trial before it runs (spec_logs, 2026-08-18).
+ * the charge sheet supplies what happened (specs.md Part 1). Keeping those apart is what
+ * stops a data file from deciding the trial before it runs: a relations file that stated
+ * the alleged act as fact would settle the charge before an advocate ever argued it.
  */
 export function buildAdvocatePrompt(
   run: ValidRun,
@@ -308,9 +309,11 @@ function statementsBlock(statements: readonly DeliveredStatement[], expected: nu
 
 /**
  * One judge's prompt: the charge sheet, all delivered statements, and the judge's own
- * persona. No relations and no character descriptions — spec_logs, 2026-08-11: "Judges
- * see statements only. Judges receive the charge + the 4 statements, not the character
- * relations." The defendant is named because a verdict has to be about someone, and the
+ * persona. No relations and no character descriptions: specs.md Part 1 has the bench
+ * hear the four statements labelled by side, not by name, so a verdict turns on the
+ * argument rather than on who made it or what the data files say about them — handing a
+ * judge the relations behind a closed door would let a fact never argued into the room
+ * anyway. The defendant is named because a verdict has to be about someone, and the
  * charge sheet names them in any case, which the pre-flight guarantees.
  *
  * The reply is asked for as a single JSON object. `judging.ts` does not depend on

@@ -14,15 +14,15 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 | Frontend | React + Vite + TypeScript, single page, SSE-driven |
 | Assets | Avatar art: 17 source PNGs in `C:\Users\Amit_PC\Downloads\Tribunal` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.png` / `undone_judge.png`. Downsample to ≤256 px WebP into `web/public/avatars/`; commit the WebP only, never the multi-MB originals |
 | Models | OpenRouter, free (`:free`) models only, identifiers server-side |
-| Persistence | **None** — the exported HTML file is the run record |
+| Persistence | MongoDB Atlas archives every finished run server-side (`MONGODB_URI` / `MONGODB_DB`, unset means no archive and the app degrades cleanly); the exported HTML file is the portable copy, rebuildable from the archive |
 | Deploy | Render free Web Service, kept awake by an external keep-warm pinger; `OPENROUTER_API_KEY` is a Render env var, never in the repo |
-| Tests | Vitest in **both** workspaces; `npm test` runs both. Server: pre-flight, judge parser, aggregation, model guard, the export and its palette against `tokens.css`. Web: the sentences the results panels derive from a record — and those same sentences are held against the server's copy from the *server* suite, since the exported file and the panels must word a run identically. The client's pre-flight mirror is tested from the *server* suite on purpose — it exists to agree with the server's pre-flight, and a test beside only one of them cannot check agreement |
-| Gate | `.githooks/pre-commit` refuses a commit that leaks a key, names a model in `web/src`, or fails typecheck, lint or tests. Enable per clone with `npm run hooks`; ~13s |
+| Tests | Vitest in **both** workspaces; `npm test` runs both. Server: pre-flight, judge parser, aggregation, model guard, the export and its palette against `tokens.css`, and the archive's round trip — a record survives being broken into the archive's two documents and put back together identical, byte-identical export included, with no test opening a real database connection. Web: the sentences the results panels derive from a record — and those same sentences are held against the server's copy from the *server* suite, since the exported file and the panels must word a run identically. The client's pre-flight mirror is tested from the *server* suite on purpose — it exists to agree with the server's pre-flight, and a test beside only one of them cannot check agreement |
+| Gate | `.githooks/pre-commit` refuses a commit that leaks a credential (an API key or a Mongo connection string), names a model in `web/src`, or fails typecheck, lint or tests. Enable per clone with `npm run hooks`; ~13s |
 
 ## Working rules
 1. **Spec first.** Fix `specs.md` before you fix code; never patch code around a stale spec. Judge quality by the spec, not the code.
 2. **Ask when unclear.** If a requirement is ambiguous or you are about to guess, stop and ask one focused question before coding.
-3. **Change the file and log it together, under today's date.** When a decision changes behavior, edit whichever file it belongs to — `specs.md` (what to build) or `CLAUDE.md` (how to build) — and *in the same step* add an entry to `spec_logs.md`. Each entry states **what changed, why, and which Part or section**. Put it under a section header for the **actual date the change is made** — **confirm the real current date rather than assuming it**; this plan was first drafted under the wrong date, which is exactly what this guards against. If today has no section yet, start a new one at the top (newest first). Never append today's change to an earlier date's section, and never backdate. **When a decision supersedes an earlier logged one, delete the superseded entry in the same step** — the log keeps only what still stands, so a reader never has to work out which of two contradicting entries is current. The edit and its log entry always move together — the spec file is the truth, `spec_logs.md` is the standing record of why.
+3. **Change the file with the code.** When a decision changes behavior, edit whichever file it belongs to — `specs.md` (what to build) or `CLAUDE.md` (how to build) — in the same step as the code that implements it. The spec file is the truth; it does not trail the code that was supposed to follow it.
 4. **The mechanical checks are not yours to judge.** `npm run typecheck`, `npm run lint` and `npm test` all pass before anything is committed, and the pre-commit hook enforces that with nobody present. Never commit with `--no-verify`, and never turn a lint rule off without writing the reason beside it.
 5. **Don't drift from the non-negotiables below.**
 
@@ -35,18 +35,18 @@ Duplicated here on purpose, so they still hold in a session that never opens `sp
 - Token and price numbers are read from the API response, never invented. (Parts 1–2)
 - Free models only: an allowlist plus the `:free` rule, enforced server-side. No env var, flag, or request field may permit a paid model. (Parts 1–2, 5)
 - The defendant is never also an advocate, and the split is exactly 2 for / 2 against. (Part 1)
-- The HTML export is the run record — self-contained, opens offline, numbers matching the app. (Part 3)
+- The HTML export is the portable run record — self-contained, opens offline, numbers matching the app — rebuildable from the archive as well as from a run still in flight. (Part 3)
+- A browser's archive list is per-browser: the server archives every run, but a browser lists only the ids it kept itself, and character relations stored with an archived run stay server-side, never reaching the browser or the export. (Part 3)
 
 ## Where to read
 | Working on | Read |
 |---|---|
 | setup, casting, pre-flight, models, sizes | `specs.md` Part 1 |
 | what "done" means, anything test-shaped | Part 2 |
-| server/client boundary, no-database stance, the export | Part 3 |
+| server/client boundary, the archive, the export | Part 3 |
 | the Jon Snow validation case and the invalid cases | Part 4 |
 | failures, parsing, timeouts, rate limits, cost holes | Part 5 |
 | the look of a screen — frame, palette, type, tiles, buttons | the design canvas (all four screens, cast from the Jon Snow case): https://claude.ai/code/artifact/d7decf08-3027-4163-bab6-e03d67995478 — then Part 1 |
-| **why** a rule exists | `spec_logs.md` — read it only then. It is long, grows forever, and is rarely needed to build. Past ~150 KB, archive older months to `spec_logs_archive.md`. |
 
 ## Code conventions
 - Explicit, readable pipeline: `setup → statements → judging → aggregate`, one module each, framework-agnostic and unit-testable.

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AppFrame } from "./components/AppFrame.js";
 import { Masthead } from "./components/Masthead.js";
 import { Panel } from "./components/Panel.js";
+import { Archive } from "./screens/Archive.js";
 import { Results } from "./screens/Results.js";
 import { Run } from "./screens/Run.js";
 import { Setup } from "./screens/Setup.js";
@@ -27,8 +28,8 @@ import "./styles/tokens.css";
  * **The draft lives here rather than in either setup screen**, because those two are two
  * views of one run being prepared — Side Select needs the defendant the charge screen
  * chose, and going back must not throw the casting away. It is held in memory and nowhere
- * else: specs.md Part 3, there is no database, and nothing about a run is stored until the
- * user exports one.
+ * else: a draft is not a run, and nothing about it is written down. The archive that
+ * specs.md Part 3 describes only ever receives a run the server has *finished*.
  *
  * **The run is started here, by the click, and not by the screen that shows it.** It costs
  * seven requests out of a rationed daily allowance, so it must happen exactly once — and an
@@ -39,7 +40,7 @@ import "./styles/tokens.css";
  * nowhere else.
  */
 
-type Screen = "setup" | "sides" | "run" | "results";
+type Screen = "setup" | "sides" | "run" | "results" | "archive";
 
 interface ActiveRun {
   readonly session: RunSession;
@@ -129,9 +130,9 @@ export function App() {
    * Leaving a run behind, from either of the two screens that show one.
    *
    * The id is dropped first: leaving means the tab is no longer watching that run, and a
-   * stale id would pull the next reload back into it. Nothing about the run is kept —
-   * specs.md Part 3, the exported file is the record, and a user who wanted one has already
-   * downloaded it by the time this is reachable.
+   * stale id would pull the next reload back into it. That is the rejoin pointer only —
+   * specs.md Part 3's per-browser archive list is a separate, longer-lived record
+   * (`run-memory.ts`'s `rememberArchivedRun`), and leaving a run does not forget it there.
    */
   const leaveRun = () => {
     rememberRun(null);
@@ -139,6 +140,10 @@ export function App() {
     setRun(null);
     setScreen("setup");
   };
+
+  if (screen === "archive") {
+    return <Archive onBack={() => setScreen("setup")} />;
+  }
 
   if (screen === "results" && run !== null) {
     return <Results session={run.session} onNewCase={leaveRun} />;
@@ -215,6 +220,7 @@ export function App() {
       onNext={() => {
         if (chargeIsReady(draft, health.preflight, characters)) setScreen("sides");
       }}
+      onOpenArchive={() => setScreen("archive")}
     />
   );
 }

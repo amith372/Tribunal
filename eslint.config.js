@@ -25,14 +25,8 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    // Build output, dependencies, and the one generated artefact.
-    ignores: [
-      "**/node_modules/**",
-      "**/dist/**",
-      "web/dist/**",
-      "server/dist/**",
-      "tribunal-demo-run.html",
-    ],
+    // Build output and dependencies. `**/dist/**` covers both workspaces' builds.
+    ignores: ["**/node_modules/**", "**/dist/**"],
   },
 
   js.configs.recommended,

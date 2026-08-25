@@ -5,11 +5,11 @@ one statement. Three judges, modelled on real Israeli Supreme Court presidents, 
 return a verdict and their reasoning. The app shows the majority verdict with a real
 token and price breakdown, and exports the run as a self-contained HTML file.
 
-Seven free OpenRouter model calls per run. No database: **the exported HTML file is the
-run record.**
+Seven free OpenRouter model calls per run. The server archives every finished run; **the
+exported HTML file is the portable copy**, rebuildable from the archive as well as from a
+run still in flight.
 
 - `specs.md` — what to build, in five prose parts. The source of truth.
-- `spec_logs.md` — every decision that shaped it, and why.
 - `CLAUDE.md` — how to build, for the agent.
 - `data/` — the five characters, their relations, and the three judges. The only source
   of character facts.
@@ -39,8 +39,9 @@ npm start       # one process serving both, http://localhost:3001
 
 ### The commit gate
 
-`.githooks/pre-commit` runs on every commit and refuses one that would leak an API key,
-write a model identifier into `web/src`, or fail typecheck, lint or tests. It takes about
+`.githooks/pre-commit` runs on every commit and refuses one that would leak a credential
+(an API key or a Mongo connection string), write a model identifier into `web/src`, or
+fail typecheck, lint or tests. It takes about
 thirteen seconds. It lives in the repo rather than in `.git/hooks` so it can be read and
 reviewed like anything else — but git does not enable a hooks directory on clone, so
 `npm run hooks` is a one-off step per checkout.
@@ -57,6 +58,7 @@ splits the bench, `-- fast` runs at four times the speed.
 | `OPENROUTER_API_KEY` | model calls only | Everything else — health, the data files, the pre-flight — runs without it. |
 | `PORT` | no | Defaults to 3001. The host sets this in production. |
 | `TRIBUNAL_MODEL_*` | no | Swaps a delisted model identifier without a code change. `npm run models:check` says which one died and what is free to replace it. |
+| `MONGODB_URI`, `MONGODB_DB` | archiving only | Unset means no archive: runs still work, they just are not saved anywhere past the buffer's own few-minute hold. |
 
 Put them in a `.env` file at the repo root for local development. It is gitignored; the
 key never belongs in the repo.

@@ -16,7 +16,6 @@ import "./CharacterTile.css";
  * default so the setup screens stay exactly as still as they were drawn.
  */
 
-export type { TileState };
 
 /**
  * What the portrait's frame says.

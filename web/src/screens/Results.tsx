@@ -7,6 +7,7 @@ import { JudgePortrait } from "../components/JudgePortrait.js";
 import { Masthead } from "../components/Masthead.js";
 import { Panel } from "../components/Panel.js";
 import type { Attempt, JudgeView, RunRecordView, StatementView } from "../api.js";
+import { rememberArchivedRun } from "../run-memory.js";
 import type { RunSession } from "../run-session.js";
 import { exportOf, saveExport, type ExportedRecord } from "../run-export.js";
 import {
@@ -53,6 +54,12 @@ import "./Results.css";
  *
  * **This screen never starts anything.** The run was opened by a click two screens ago and
  * lives outside React; arriving here, leaving and coming back costs nothing.
+ *
+ * **The panels are a pure function of a record, split out as `ResultsPanels`.** A live run
+ * and an archived one both end up with a `RunRecordView` and nothing else in common — this
+ * component is the live wrapper that reads one off a session's stream; the archive screen
+ * reads one off `GET /api/archive/:id` and renders the identical panels, so an archived run
+ * cannot drift from how a live one was shown.
  */
 
 export function Results({
@@ -63,10 +70,70 @@ export function Results({
   onNewCase: () => void;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
-  const record = state.record;
   const runId =
     state.preflight?.runId ?? (session.source.kind === "rejoin" ? session.source.runId : null);
 
+  /**
+   * The one place a run's id joins this browser's archive list — not a click handler, so
+   * every path to a finished record hits it alike: a run watched live to its close, one
+   * rejoined mid-flight, and one reopened here after a reload. `rememberArchivedRun`
+   * dedupes, so a repeat of this effect (React's double-invoke in development, a record
+   * that is already there) costs nothing.
+   */
+  useEffect(() => {
+    if (state.record !== null && runId !== null) rememberArchivedRun(runId);
+  }, [state.record, runId]);
+
+  if (state.record === null) {
+    return (
+      <AppFrame
+        footer={
+          <>
+            <div className="app-sheet-footer-status">
+              <span className="mono results-note">Nothing was recorded, so nothing is exportable.</span>
+            </div>
+            <div className="app-sheet-footer-actions">
+              <Button variant="primary" onClick={onNewCase}>
+                Back to the charge
+              </Button>
+            </div>
+          </>
+        }
+      >
+        <Masthead subtitle="The bench never reached a finding." step={4} />
+        <div className="app-message">
+          <Panel sunken className="app-message-panel">
+            <h2 className="section-heading">There is no record to show</h2>
+            <p>
+              This run ended without producing a record — it was refused before any model was
+              called, or the connection to it was lost before the bench ruled. Nothing is
+              invented to fill that in.
+            </p>
+          </Panel>
+        </div>
+      </AppFrame>
+    );
+  }
+
+  return <ResultsPanels record={state.record} runId={runId} onNewCase={onNewCase} />;
+}
+
+/**
+ * The panels. Renders a record; knows nothing about sessions or streams — a live run and
+ * an archived one both reach this component the same way, through a plain `RunRecordView`.
+ */
+export function ResultsPanels({
+  record,
+  runId,
+  onNewCase,
+  newCaseLabel,
+}: {
+  record: RunRecordView;
+  runId: string | null;
+  onNewCase: () => void;
+  /** Defaults to "Start a new charge sheet" — the archive screen's Back button overrides it. */
+  newCaseLabel?: string;
+}) {
   const [index, setIndex] = useState(0);
   const [file, setFile] = useState<ExportedRecord | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -107,7 +174,7 @@ export function Results({
    * Export on the fourth.
    */
   useEffect(() => {
-    if (record === null || runId === null) return;
+    if (runId === null) return;
     let live = true;
     exportOf(runId)
       .then((ready) => {
@@ -119,7 +186,7 @@ export function Results({
     return () => {
       live = false;
     };
-  }, [record, runId]);
+  }, [runId]);
 
   const retryExport = (): void => {
     if (runId === null) return;
@@ -128,39 +195,6 @@ export function Results({
       .then(setFile)
       .catch((error: Error) => setExportError(error.message));
   };
-
-  /* ---- a run with no record has no verdict to show ---------------------------------- */
-
-  if (record === null) {
-    return (
-      <AppFrame
-        footer={
-          <>
-            <div className="app-sheet-footer-status">
-              <span className="mono results-note">Nothing was recorded, so nothing is exportable.</span>
-            </div>
-            <div className="app-sheet-footer-actions">
-              <Button variant="primary" onClick={onNewCase}>
-                Back to the charge
-              </Button>
-            </div>
-          </>
-        }
-      >
-        <Masthead subtitle="The bench never reached a finding." step={4} />
-        <div className="app-message">
-          <Panel sunken className="app-message-panel">
-            <h2 className="section-heading">There is no record to show</h2>
-            <p>
-              This run ended without producing a record — it was refused before any model was
-              called, or the connection to it was lost before the bench ruled. Nothing is
-              invented to fill that in.
-            </p>
-          </Panel>
-        </div>
-      </AppFrame>
-    );
-  }
 
   const panel = PANELS[index];
   // Three states and no fourth: it is here, it failed, or it is still coming. "Still
@@ -200,7 +234,12 @@ export function Results({
         {panel.id === "advocates" && <AdvocatesPanel record={record} />}
         {panel.id === "spend" && <SpendPanel record={record} exportState={exportState} />}
         {panel.id === "closing" && (
-          <ClosingPanel record={record} exportState={exportState} onNewCase={onNewCase} />
+          <ClosingPanel
+            record={record}
+            exportState={exportState}
+            onNewCase={onNewCase}
+            newCaseLabel={newCaseLabel}
+          />
         )}
       </div>
     </AppFrame>
@@ -539,10 +578,12 @@ function ClosingPanel({
   record,
   exportState,
   onNewCase,
+  newCaseLabel,
 }: {
   record: RunRecordView;
   exportState: ExportState;
   onNewCase: () => void;
+  newCaseLabel?: string;
 }) {
   const closing = closingLines(record);
   const roles = rolesAnswered(record);
@@ -575,12 +616,13 @@ function ClosingPanel({
 
       <div className="results-closing-actions">
         <ExportButton exportState={exportState} />
-        <Button onClick={onNewCase}>Start a new charge sheet</Button>
+        <Button onClick={onNewCase}>{newCaseLabel ?? "Start a new charge sheet"}</Button>
       </div>
 
       <p className="results-footnote">
-        Nothing is kept on the server. Once this tab closes, the exported file is the only
-        record of the run.
+        If this server keeps an archive, this run has been added to it and will show up
+        under your past runs in this browser. The exported file is the portable copy
+        either way — the one that opens with no server and no network.
       </p>
     </section>
   );

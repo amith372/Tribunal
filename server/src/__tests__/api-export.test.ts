@@ -23,6 +23,7 @@ import { createApp, type AppOptions } from "../app.js";
 import type { RunRecord } from "../aggregate.js";
 import { buildExportHtml, exportFileName } from "../export.js";
 import { loadData } from "../data.js";
+import { RunBuffer } from "../run-buffer.js";
 import { fakeResult } from "./fake-caller.js";
 import type { CallOptions, CallResult } from "../openrouter.js";
 import { PART_4_CAST, PART_4_CHARGE_SHEET } from "./preflight-cases.js";
@@ -60,21 +61,29 @@ function caller(delayMs = 0) {
 
 async function serve(options: Omit<AppOptions, "data"> = {}): Promise<{
   url: string;
+  buffer: RunBuffer;
   stop: () => Promise<void>;
 }> {
-  const app = createApp({ data, logRuns: false, ...options });
+  const buffer = options.buffer ?? new RunBuffer();
+  const app = createApp({ data, logRuns: false, ...options, buffer });
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
   });
   const { port } = server.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}`,
+    buffer,
     stop: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }
 
-/** Runs a case to its end and hands back the run's id and the record that closed it. */
-async function runOnce(url: string): Promise<{ runId: string; record: RunRecord }> {
+/**
+ * Runs a case to its end and hands back the run's id and the full record that closed it
+ * — read from the buffer's own storage, not off the SSE wire, since what reaches the
+ * browser there is deliberately trimmed (`record-view.ts`) and is missing the raw
+ * response bodies `buildExportHtml` needs.
+ */
+async function runOnce(url: string, buffer: RunBuffer): Promise<{ runId: string; record: RunRecord }> {
   const response = await fetch(`${url}/api/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -83,23 +92,22 @@ async function runOnce(url: string): Promise<{ runId: string; record: RunRecord 
   const text = await response.text();
 
   let runId = "";
-  let record: RunRecord | null = null;
   for (const block of text.split("\n\n")) {
     const lines = block.split("\n");
     const event = lines.find((line) => line.startsWith("event: "))?.slice(7);
     const payload = lines.find((line) => line.startsWith("data: "))?.slice(6);
-    if (!event || !payload) continue;
-    if (event === "preflight") runId = (JSON.parse(payload) as { runId: string }).runId;
-    if (event === "done") record = JSON.parse(payload) as RunRecord;
+    if (event === "preflight" && payload) runId = (JSON.parse(payload) as { runId: string }).runId;
   }
-  if (record === null) throw new Error("the run produced no record");
-  return { runId, record };
+
+  const done = buffer.get(runId)?.events.find((e) => e.event === "done");
+  if (!done) throw new Error("the run produced no record");
+  return { runId, record: done.data as RunRecord };
 }
 
 describe("the exported file is the record the app rendered", () => {
   it("serves exactly what the record renders to, and nothing rebuilt", async () => {
-    const { url, stop } = await serve({ call: caller() });
-    const { runId, record } = await runOnce(url);
+    const { url, buffer, stop } = await serve({ call: caller() });
+    const { runId, record } = await runOnce(url, buffer);
 
     const response = await fetch(`${url}/api/run/${runId}/export`);
     expect(response.status).toBe(200);
@@ -113,8 +121,8 @@ describe("the exported file is the record the app rendered", () => {
   });
 
   it("carries the run's own totals, so the panel and the file cannot disagree", async () => {
-    const { url, stop } = await serve({ call: caller() });
-    const { runId, record } = await runOnce(url);
+    const { url, buffer, stop } = await serve({ call: caller() });
+    const { runId, record } = await runOnce(url, buffer);
 
     const html = await (await fetch(`${url}/api/run/${runId}/export`)).text();
     expect(html).toContain(record.totals.totalTokens.toLocaleString("en-US"));
@@ -124,8 +132,8 @@ describe("the exported file is the record the app rendered", () => {
   });
 
   it("is offered as a download, named for the defendant and the run", async () => {
-    const { url, stop } = await serve({ call: caller() });
-    const { runId, record } = await runOnce(url);
+    const { url, buffer, stop } = await serve({ call: caller() });
+    const { runId, record } = await runOnce(url, buffer);
 
     const response = await fetch(`${url}/api/run/${runId}/export`);
     const disposition = response.headers.get("content-disposition") ?? "";

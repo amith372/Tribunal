@@ -57,9 +57,25 @@ export interface ModelsView {
 /** The run's only model-related input: a mode, never an identifier. */
 export type Mode = "solo" | "per-role";
 
+/** The server's own words where it has any — a 404's `{ error }` reads better than a code. */
+async function errorFrom(path: string, response: Response): Promise<Error> {
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  return new Error(body?.error ?? `${path} answered HTTP ${response.status}`);
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(`${path} answered HTTP ${response.status}`);
+  if (!response.ok) throw await errorFrom(path, response);
+  return (await response.json()) as T;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await errorFrom(path, response);
   return (await response.json()) as T;
 }
 
@@ -235,4 +251,39 @@ export interface PreflightEvent {
     readonly name: string;
     readonly requestedModel: string;
   }[];
+}
+
+/* ---------------------------------------------------------------------------------------
+ * The archive: past runs this browser has kept the id of. `run-memory.ts` holds the ids;
+ * these two calls resolve them into something to render. Mirrors the server's own
+ * `ArchiveSummary` and `RunRecordView` shapes by hand, for the same reason as above.
+ * ------------------------------------------------------------------------------------ */
+
+/** The list-row payload for one archived run. Small on purpose. */
+export interface ArchiveSummary {
+  readonly runId: string;
+  readonly startedAt: string;
+  readonly defendant: { readonly id: string; readonly name: string };
+  readonly chargePreview: string;
+  readonly outcome: RunOutcome;
+  readonly tally: Tally;
+  readonly costUsd: number;
+  readonly totalTokens: number;
+  readonly complete: boolean;
+}
+
+/** An archived run's full record, in the same shape a live run's `done` event carries. */
+export const getArchivedRun = (id: string) =>
+  getJson<{ ok: boolean; runId: string; record: RunRecordView }>(
+    `/api/archive/${encodeURIComponent(id)}`,
+  );
+
+/** Resolves a browser's own remembered run ids into summaries, newest first. */
+export async function listArchive(ids: readonly string[]): Promise<readonly ArchiveSummary[]> {
+  if (ids.length === 0) return [];
+  const body = await postJson<{ ok: boolean; runs: readonly ArchiveSummary[] }>(
+    "/api/archive/list",
+    { ids },
+  );
+  return body.runs;
 }

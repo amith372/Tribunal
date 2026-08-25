@@ -18,6 +18,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { createApp, type AppOptions } from "../app.js";
+import type { RunArchive } from "../archive.js";
 import { assertAllowedModel, FALLBACK_ROUTER, getModelRegistry } from "../config.js";
 import {
   CHARGE_CUES,
@@ -279,6 +280,42 @@ describe("a run the pre-flight passes", () => {
     expect(asked.some((model) => model.includes("claude") || model.includes("gpt-5"))).toBe(false);
     expect(asked.every((model) => model.endsWith(":free") || model === "openrouter/free")).toBe(true);
 
+    await stop();
+  });
+});
+
+describe("the finished run is archived when an archive is configured", () => {
+  it("saves the record and the data's relations under the run's own id", async () => {
+    const saved: { runId: string; record: unknown; relations: unknown }[] = [];
+    const archive: RunArchive = {
+      save(runId, record, relations) {
+        saved.push({ runId, record, relations });
+        return Promise.resolve();
+      },
+      list: () => Promise.resolve([]),
+      get: () => Promise.resolve(null),
+    };
+
+    const { url, stop } = await serve({ call: pacedCaller().call, archive });
+    const frames = await runToCompletion(url);
+    const runId = (frames[0]?.data as { runId: string }).runId;
+
+    // The save is fire-and-forget behind the resolved response; give the microtask
+    // queue one more turn to let it land before asserting on it.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.runId).toBe(runId);
+    expect(saved[0]?.relations).toEqual(data.relations);
+    expect((saved[0]?.record as { outcome: { kind: string } }).outcome.kind).toBe("verdict");
+
+    await stop();
+  });
+
+  it("does not touch an unconfigured archive — there is none", async () => {
+    const { url, stop } = await serve({ call: pacedCaller().call, archive: null });
+    const frames = await runToCompletion(url);
+    expect(frames.at(-1)?.event).toBe("done");
     await stop();
   });
 });

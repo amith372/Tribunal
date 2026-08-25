@@ -53,6 +53,7 @@ export function Setup({
   onMode,
   onLoadExample,
   onNext,
+  onOpenArchive,
 }: {
   characters: readonly Character[];
   rules: PreflightRules;
@@ -65,6 +66,7 @@ export function Setup({
   onMode: (mode: Mode) => void;
   onLoadExample: (chargeSheet: string, defendantId: string) => void;
   onNext: () => void;
+  onOpenArchive: () => void;
 }) {
   const length = lengthState(draft.chargeSheet, rules);
   const checks = setupChecks(draft, rules, characters);
@@ -81,6 +83,7 @@ export function Setup({
             </span>
           </div>
           <div className="app-sheet-footer-actions">
+            <Button onClick={onOpenArchive}>Past runs</Button>
             <Button onClick={() => onLoadExample(EXAMPLE_CASE.chargeSheet, EXAMPLE_CASE.defendantId)}>
               Load the Jon Snow case
             </Button>

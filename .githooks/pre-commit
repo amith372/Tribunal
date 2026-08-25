@@ -37,8 +37,10 @@ fail() {
 # ---- 1. secrets ---------------------------------------------------------------------
 # Shaped to real key entropy rather than to the word "key", so there is no allowlist to
 # rot. A test fixture like "sk-or-v1-test-key-not-real" is short and hyphenated and does
-# not match; a real 64-character OpenRouter key does.
-secret_re='sk-or-v1-[A-Za-z0-9]{40,}|sk-ant-[A-Za-z0-9_-]{40,}|sk-proj-[A-Za-z0-9_-]{40,}|gh[pousr]_[A-Za-z0-9]{36,}|AKIA[0-9A-Z]{16}'
+# not match; a real 64-character OpenRouter key does. The Mongo alternative is shaped the
+# same way — a credentialed connection URI, not the word "mongodb" — so a bare
+# `mongodb://localhost:27017` in a test fixture or a doc comment does not match either.
+secret_re='sk-or-v1-[A-Za-z0-9]{40,}|sk-ant-[A-Za-z0-9_-]{40,}|sk-proj-[A-Za-z0-9_-]{40,}|gh[pousr]_[A-Za-z0-9]{36,}|AKIA[0-9A-Z]{16}|mongodb(\+srv)?://[^:/@[:space:]]+:[^@[:space:]]+@'
 
 for file in $staged; do
   case "$file" in
