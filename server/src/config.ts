@@ -110,12 +110,12 @@ const DEFAULTS = {
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
   ],
   /**
-   * Seven models for four seats, across five makers. Advocates do not vote, so several
+   * Seven models for four seats, across six makers. Advocates do not vote, so several
    * models from one maker in the *pool* costs nothing — `pickSeats` fills the four seats
    * maker-first, so the four voices are always drawn from four makers however the shuffle
    * falls, and the rest sit as spares.
    *
-   * Five makers for four seats also restores real run-to-run variety in *which* makers are
+   * Six makers for four seats also restores real run-to-run variety in *which* makers are
    * heard, not merely which model each maker sends.
    *
    * `openai/gpt-oss-20b` was here until 2026-08-22, when `models:check` reported it
@@ -128,10 +128,23 @@ const DEFAULTS = {
     // Back from the bench, where it returned empty content twice. It writes statements
     // well and cannot produce a verdict; those are different jobs.
     "dots-studio/dots-3-note-preview:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
+    // Replaces `nvidia/nemotron-3-nano-30b-a3b`, delisted by 2026-08-26. Vetted with a
+    // single request the same day before being seated: 5.0s, `stop`, 64 words of usable
+    // advocate prose, usage returned, $0. It holds a seat rather than a spare because it
+    // is the one of the two replacements that has actually been heard from.
+    "minimax/minimax-m3:free",
     "liquid/lfm-2.5-2.6b:free",
     "nvidia/nemotron-3.5-lightning:free",
-    "nvidia/nemotron-nano-9b-v2:free",
+    // Replaces `nvidia/nemotron-nano-9b-v2`, delisted by 2026-08-26. **The one entry here
+    // that has not been watched writing anything**: its vetting request on 2026-08-26 came
+    // back rate-limited upstream (GMICloud shared pool), which is a transient refusal and
+    // not inkling's flat 403 — so it is unproven rather than known bad, and there was no
+    // third candidate to prefer over it. The free roster offered exactly two unused
+    // identifiers that day and `EXCLUDED_MODELS` already names every other one. It sits in
+    // the last spare slot deliberately: nothing reaches it until a seat has already failed
+    // over, and if it fails too the chain falls through to the router as it would anyway.
+    // Promote it once a real run has been seen to use it.
+    "minimax/minimax-m2.7:free",
   ],
 };
 

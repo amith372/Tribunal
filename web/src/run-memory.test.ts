@@ -9,7 +9,13 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { archivedRunIds, forgetArchivedRun, rememberArchivedRun } from "./run-memory.js";
+import {
+  archivedRunIds,
+  forgetArchivedRun,
+  forgetArchivedRuns,
+  missingArchiveIds,
+  rememberArchivedRun,
+} from "./run-memory.js";
 
 function fakeStorage(): Storage {
   const data = new Map<string, string>();
@@ -103,6 +109,49 @@ describe("forgetArchivedRun", () => {
   });
 });
 
+describe("forgetArchivedRuns", () => {
+  it("drops every id it is given, keeping the rest in order", () => {
+    for (const id of ["run-a", "run-b", "run-c", "run-d"]) rememberArchivedRun(id);
+    forgetArchivedRuns(["run-b", "run-d"]);
+    expect(archivedRunIds()).toEqual(["run-c", "run-a"]);
+  });
+
+  it("leaves the list untouched when given nothing", () => {
+    rememberArchivedRun("run-a");
+    forgetArchivedRuns([]);
+    expect(archivedRunIds()).toEqual(["run-a"]);
+  });
+
+  it("ignores ids that were never remembered", () => {
+    rememberArchivedRun("run-a");
+    forgetArchivedRuns(["run-a", "run-never-seen"]);
+    expect(archivedRunIds()).toEqual([]);
+  });
+});
+
+describe("missingArchiveIds", () => {
+  it("reports the remembered ids the server did not answer for, in order", () => {
+    expect(missingArchiveIds(["a", "b", "c"], ["b"])).toEqual(["a", "c"]);
+  });
+
+  it("reports none when every id came back", () => {
+    expect(missingArchiveIds(["a", "b"], ["b", "a"])).toEqual([]);
+  });
+
+  it("reports all of them when the server answered for none", () => {
+    expect(missingArchiveIds(["a", "b"], [])).toEqual(["a", "b"]);
+  });
+
+  /**
+   * The screen forgets exactly what this reports, so the two must not disagree about an
+   * id the server volunteered without being asked. Reporting it as missing would have the
+   * screen drop an id whose run the server actually holds.
+   */
+  it("ignores a found id that was never remembered", () => {
+    expect(missingArchiveIds(["a"], ["a", "unasked-for"])).toEqual([]);
+  });
+});
+
 describe("a browser that refuses storage", () => {
   it("degrades to an empty list rather than throwing", () => {
     Object.defineProperty(globalThis, "localStorage", {
@@ -114,5 +163,6 @@ describe("a browser that refuses storage", () => {
     expect(() => rememberArchivedRun("run-a")).not.toThrow();
     expect(archivedRunIds()).toEqual([]);
     expect(() => forgetArchivedRun("run-a")).not.toThrow();
+    expect(() => forgetArchivedRuns(["run-a", "run-b"])).not.toThrow();
   });
 });

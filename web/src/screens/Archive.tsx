@@ -6,7 +6,7 @@ import { CharacterTile } from "../components/CharacterTile.js";
 import { Masthead } from "../components/Masthead.js";
 import { Panel } from "../components/Panel.js";
 import { getArchivedRun, listArchive, type ArchiveSummary, type RunRecordView } from "../api.js";
-import { archivedRunIds } from "../run-memory.js";
+import { archivedRunIds, forgetArchivedRuns, missingArchiveIds } from "../run-memory.js";
 import { headline, number, price } from "../results-model.js";
 import { ResultsPanels } from "./Results.js";
 import "./Archive.css";
@@ -27,7 +27,7 @@ import "./Archive.css";
  * nothing here re-derives what it says.
  */
 export function Archive({ onBack }: { onBack: () => void }) {
-  const [ids] = useState(() => archivedRunIds());
+  const [ids, setIds] = useState(() => archivedRunIds());
   // Already known synchronously when there is nothing to ask the server about — no effect
   // needed to reach that state, only to fetch when there is.
   const [rows, setRows] = useState<readonly ArchiveSummary[] | null>(() =>
@@ -53,6 +53,19 @@ export function Archive({ onBack }: { onBack: () => void }) {
       live = false;
     };
   }, [ids]);
+
+  /**
+   * Drops the remembered ids the server did not resolve.
+   *
+   * Only ever the *missing* ones, so `rows` stays true without being refetched — every row
+   * on screen is a run the server just answered for, and none of them is being forgotten.
+   * The new list is read back out of storage rather than computed here, so what the screen
+   * shows next is what the browser actually holds.
+   */
+  const forgetMissing = (): void => {
+    forgetArchivedRuns(missingArchiveIds(ids, (rows ?? []).map((row) => row.runId)));
+    setIds(archivedRunIds());
+  };
 
   const openRun = (runId: string): void => {
     setOpenId(runId);
@@ -120,7 +133,7 @@ export function Archive({ onBack }: { onBack: () => void }) {
         ) : rows === null ? (
           <p className="mono app-loading">Reading the archive…</p>
         ) : (
-          <ArchiveList ids={ids} rows={rows} onOpen={openRun} />
+          <ArchiveList ids={ids} rows={rows} onOpen={openRun} onForgetMissing={forgetMissing} />
         )}
       </div>
     </AppFrame>
@@ -131,19 +144,29 @@ function ArchiveList({
   ids,
   rows,
   onOpen,
+  onForgetMissing,
 }: {
   ids: readonly string[];
   rows: readonly ArchiveSummary[];
   onOpen: (runId: string) => void;
+  onForgetMissing: () => void;
 }) {
-  const missing = ids.length - rows.length;
+  const missing = missingArchiveIds(ids, rows.map((row) => row.runId)).length;
 
   return (
     <>
       {missing > 0 && (
         <Callout>
-          {missing} of {ids.length} remembered {ids.length === 1 ? "run" : "runs"} could not be
-          found on this server — it may predate the archive, or have since been removed.
+          <span className="archive-callout-text">
+            {missing} of {ids.length} remembered {ids.length === 1 ? "run" : "runs"} could not be
+            found on this server — it may predate the archive, or have since been removed.
+          </span>
+          {/* specs.md Part 3: an unresolved id is dropped only when a person asks. The list
+              of ids is the only handle a run has, and a server answering for the wrong
+              database would look exactly like this. */}
+          <Button variant="secondary" onClick={onForgetMissing}>
+            {missing === 1 ? "Forget it" : "Forget them"}
+          </Button>
         </Callout>
       )}
 

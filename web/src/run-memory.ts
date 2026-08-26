@@ -79,3 +79,33 @@ export function archivedRunIds(): readonly string[] {
 export function forgetArchivedRun(runId: string): void {
   writeArchiveIds(readArchiveIds().filter((id) => id !== runId));
 }
+
+/**
+ * Drops several ids in one write.
+ *
+ * The archive screen forgets a whole set at once — every id the server did not resolve —
+ * and doing that as N separate calls would read and rewrite the list N times, leaving a
+ * browser that refused storage part-way through in a state neither the caller nor the user
+ * asked for. One read, one write, or nothing.
+ */
+export function forgetArchivedRuns(runIds: readonly string[]): void {
+  if (runIds.length === 0) return;
+  const dropped = new Set(runIds);
+  writeArchiveIds(readArchiveIds().filter((id) => !dropped.has(id)));
+}
+
+/**
+ * The remembered ids the server did not answer for, in the order this browser holds them.
+ *
+ * specs.md Part 3: an unresolved id is *shown* rather than pruned, because the id list is
+ * the only handle a run has and a server pointed at the wrong database — or at none —
+ * answers a whole list with silence. So this only ever reports; forgetting is a separate
+ * call, made when a person asks for it. Pure, and therefore testable without a screen.
+ */
+export function missingArchiveIds(
+  ids: readonly string[],
+  foundIds: readonly string[],
+): readonly string[] {
+  const found = new Set(foundIds);
+  return ids.filter((id) => !found.has(id));
+}

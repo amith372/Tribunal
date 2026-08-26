@@ -136,9 +136,28 @@
   margin-top: 1px;
 }
 
+/* The text takes the room; the action keeps its width and sits against the wrapped block
+   rather than riding up beside the first line. */
+.archive-callout-text {
+  flex: 1 1 auto;
+}
+
+.archive-callout .btn {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* ---- narrow ------------------------------------------------------------------------- */
 
 @media (max-width: 700px) {
+  .archive-callout {
+    flex-wrap: wrap;
+  }
+
+  .archive-callout .btn {
+    margin-left: 26px; /* clears the icon, so the action lines up under the sentence */
+  }
+
   .archive-row {
     flex-wrap: wrap;
   }
