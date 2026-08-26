@@ -4,7 +4,14 @@ import { CharacterTile } from "../components/CharacterTile.js";
 import { Masthead } from "../components/Masthead.js";
 import { Panel, SectionBar } from "../components/Panel.js";
 import type { Character, Side } from "../api.js";
-import { castingIsReady, countSide, type SetupDraft } from "../preflight-mirror.js";
+import {
+  ADVOCATE_SEATS,
+  castingIsReady,
+  countSide,
+  SEATS_PER_SIDE,
+  sideIsOpenTo,
+  type SetupDraft,
+} from "../preflight-mirror.js";
 import "./SideSelect.css";
 
 /**
@@ -26,6 +33,17 @@ import "./SideSelect.css";
  * disappeared would read as locked in when in fact nothing is settled until the trial
  * opens.
  *
+ * **The accused stands on the track with everyone else, and their right arrow never
+ * moves.** Part 1 lets the accused answer the charge from a defence seat and forbids them
+ * the prosecution, so the one card that can never cross to the right is theirs — dimmed
+ * for the same reason a full side is dimmed, and labelled with the reason. The accused
+ * used to sit above the track as a chip reading "never argues"; that was the old rule
+ * drawn as furniture, and it went when the rule did.
+ *
+ * **Four seats and five characters, so one card is still in the middle when the trial can
+ * open.** That makes "nobody left in the middle" the wrong readiness test and "every seat
+ * filled" the right one — the footer counts empty seats, not leftover characters.
+ *
  * **The primary action here is the expensive one.** Pressing it posts the run and spends
  * seven requests out of a daily allowance rationed in requests, so it is reachable only
  * from a complete casting — and it disables itself the moment it is pressed, because a
@@ -36,15 +54,15 @@ import "./SideSelect.css";
 type Position = Side | null;
 
 export function SideSelect({
-  advocates,
+  castable,
   defendant,
   draft,
   onMove,
   onBack,
   onRun,
 }: {
-  /** The four who are not on trial. The defendant is never among them (Part 1). */
-  advocates: readonly Character[];
+  /** Everyone castable: all five, the accused included (Part 1). */
+  castable: readonly Character[];
   defendant: Character;
   draft: SetupDraft;
   onMove: (characterId: string, position: Position) => void;
@@ -54,8 +72,8 @@ export function SideSelect({
 }) {
   const defense = countSide(draft, "for");
   const prosecution = countSide(draft, "against");
-  const unplaced = advocates.filter((advocate) => !draft.sides[advocate.id]).length;
-  const ready = castingIsReady(draft, advocates);
+  const empty = ADVOCATE_SEATS - defense - prosecution;
+  const ready = castingIsReady(draft, castable, defendant.id);
 
   const positionOf = (id: string): Position => draft.sides[id] ?? null;
 
@@ -76,9 +94,9 @@ export function SideSelect({
               <>
                 <WarnMark />
                 <span className="sides-status is-warning">
-                  {unplaced === 1
-                    ? "One advocate is still in the middle. "
-                    : `${unplaced} advocates are still in the middle. `}
+                  {empty === 1
+                    ? "One seat is still empty. "
+                    : `${empty} seats are still empty. `}
                   The trial cannot open until each side holds exactly two.
                 </span>
               </>
@@ -99,7 +117,10 @@ export function SideSelect({
         </>
       }
     >
-      <Masthead subtitle="Push each advocate to a side. Two seats on each, no more." step={2} />
+      <Masthead
+        subtitle="Push four of the five to a side. Two seats on each, no more."
+        step={2}
+      />
 
       <div className="sides">
         <div className="sides-track">
@@ -112,8 +133,9 @@ export function SideSelect({
             </div>
 
             <div className="sides-head sides-head-accused">
-              {/* The accused sits above the track and never on it: specs.md Part 1's
-                  non-negotiable, made structural rather than validated. */}
+              {/* The accused is on the track below, with everyone else. This says which
+                  card is theirs and which direction is closed to it — specs.md Part 1:
+                  they may answer the charge, and nobody prosecutes themselves. */}
               <div className="sides-accused">
                 <CharacterTile
                   characterId={defendant.id}
@@ -122,7 +144,7 @@ export function SideSelect({
                   tone="accused"
                 />
                 <span className="mono sides-accused-label">
-                  {defendant.name} — the accused, never argues
+                  {defendant.name} — the accused. May answer from the defence, never prosecute.
                 </span>
               </div>
             </div>
@@ -134,7 +156,7 @@ export function SideSelect({
           </div>
 
           <div className="sides-rows">
-            {advocates.map((advocate) => {
+            {castable.map((advocate) => {
               const position = positionOf(advocate.id);
               // One card, placed in the column its side names. The two empty columns are
               // still drawn, so every card sits on the same three-position track and a
@@ -142,6 +164,7 @@ export function SideSelect({
               const card = (
                 <Card
                   advocate={advocate}
+                  isAccused={advocate.id === defendant.id}
                   position={position}
                   defense={defense}
                   prosecution={prosecution}
@@ -159,8 +182,9 @@ export function SideSelect({
 
             <div className="sides-hint">
               <span className="mono">
-                A dimmed arrow means that side is full, or the track ends there. Nobody is locked
-                in until the trial opens.
+                A dimmed arrow means that side is full, that the track ends there, or that the
+                accused cannot prosecute themselves. Four seats and five characters: one sits the
+                case out, and nobody is locked in until the trial opens.
               </span>
             </div>
           </div>
@@ -173,7 +197,9 @@ export function SideSelect({
 /** `n / 2`, green once the side is full and amber while it is not. */
 function Counter({ filled }: { filled: number }) {
   return (
-    <div className={`display sides-counter${filled === 2 ? " is-full" : ""}`}>{filled} / 2</div>
+    <div className={`display sides-counter${filled === SEATS_PER_SIDE ? " is-full" : ""}`}>
+      {filled} / {SEATS_PER_SIDE}
+    </div>
   );
 }
 
@@ -183,12 +209,15 @@ function Counter({ filled }: { filled: number }) {
  */
 function Card({
   advocate,
+  isAccused,
   position,
   defense,
   prosecution,
   onMove,
 }: {
   advocate: Character;
+  /** The accused. Their card sits on the track, but the prosecution is closed to it. */
+  isAccused: boolean;
   position: Position;
   defense: number;
   prosecution: number;
@@ -201,17 +230,34 @@ function Card({
   const rightTarget: Position | "end" =
     position === "for" ? null : position === null ? "against" : "end";
 
-  const leftBlocked = leftTarget === "end" || (leftTarget === "for" && defense >= 2);
-  const rightBlocked = rightTarget === "end" || (rightTarget === "against" && prosecution >= 2);
+  // `sideIsOpenTo` takes the defendant's id, so this card is the accused exactly when the
+  // two match. Passing null for everyone else keeps one rule in one function.
+  const accusedId = isAccused ? advocate.id : null;
 
-  const tone = position === "for" ? "defense" : position === "against" ? "prosecution" : "neutral";
+  const leftBlocked = leftTarget === "end" || (leftTarget === "for" && defense >= SEATS_PER_SIDE);
+  const rightBlocked =
+    rightTarget === "end" ||
+    (rightTarget === "against" &&
+      // Full, or closed to this character entirely. The accused's right arrow is dead
+      // whatever the counter says, so the rule is unreachable on the screen rather than
+      // merely refused after it.
+      (prosecution >= SEATS_PER_SIDE || !sideIsOpenTo(advocate.id, "against", accusedId)));
+
+  const tone =
+    position === "for"
+      ? "defense"
+      : position === "against"
+        ? "prosecution"
+        : isAccused
+          ? "accused"
+          : "neutral";
 
   const card = (
     <div className="sides-card">
       <Arrow
         direction="left"
         blocked={leftBlocked}
-        label={arrowLabel(advocate.name, leftTarget, leftBlocked, "left")}
+        label={arrowLabel(advocate.name, leftTarget, leftBlocked, "left", isAccused)}
         // `leftBlocked` is already true for the end of the track, so what is left here is
         // a real destination.
         onClick={() => {
@@ -225,7 +271,7 @@ function Card({
       <Arrow
         direction="right"
         blocked={rightBlocked}
-        label={arrowLabel(advocate.name, rightTarget, rightBlocked, "right")}
+        label={arrowLabel(advocate.name, rightTarget, rightBlocked, "right", isAccused)}
         onClick={() => {
           if (!rightBlocked) onMove(advocate.id, rightTarget);
         }}
@@ -293,12 +339,16 @@ function arrowLabel(
   target: Position | "end",
   blocked: boolean,
   direction: "left" | "right",
+  isAccused: boolean,
 ): string {
   if (target === "end") {
     return `${name} is already as far ${direction} as the track goes`;
   }
   if (target === null) {
     return `Take ${name} back to the middle`;
+  }
+  if (target === "against" && isAccused) {
+    return `${name} is the accused and cannot prosecute themselves`;
   }
   const side = target === "for" ? "defense" : "prosecution";
   return blocked ? `The ${side} already holds two` : `Move ${name} to the ${side}`;

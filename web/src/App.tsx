@@ -19,7 +19,7 @@ import {
 } from "./api.js";
 import { rememberRun } from "./run-memory.js";
 import { inheritedRunSession, startRunSession, type RunSession } from "./run-session.js";
-import { advocatesOf, chargeIsReady, type SetupDraft } from "./preflight-mirror.js";
+import { castableCharacters, chargeIsReady, type SetupDraft } from "./preflight-mirror.js";
 import "./styles/tokens.css";
 
 /**
@@ -111,15 +111,18 @@ export function App() {
 
   const draft: SetupDraft = { chargeSheet, defendantId, sides };
   const characters = health.characters;
-  const advocates = advocatesOf(characters, defendantId);
+  const castable = castableCharacters(characters);
   const defendant = characters.find((character) => character.id === defendantId);
 
   /**
    * Choosing a defendant clears the casting.
    *
-   * The advocates are "the other four" (specs.md Part 1), so changing who is on trial
-   * changes who the four *are* — keeping the old placements would silently leave the new
-   * defendant holding a side, which is the one thing this screen must never allow.
+   * Every character is castable now that the accused may answer the charge themselves
+   * (specs.md Part 1), so changing who is on trial no longer changes *who* may be cast —
+   * but it does change what each placement means, and it can leave the incoming defendant
+   * sitting on the prosecution, which is the one arrangement this screen must never
+   * allow. Clearing is the honest answer: casting is a judgement about a particular
+   * accused, and it should be made again when the accused changes.
    */
   const chooseDefendant = (id: string) => {
     setDefendantId(id);
@@ -167,7 +170,7 @@ export function App() {
   if (screen === "sides" && defendant) {
     return (
       <SideSelect
-        advocates={advocates}
+        castable={castable}
         defendant={defendant}
         draft={draft}
         onMove={(characterId, position) =>
@@ -181,15 +184,19 @@ export function App() {
          */
         onRun={() => {
           if (defendantId === null) return;
+          // The four who actually hold a seat, each with the side it was pushed to.
+          // Filtered rather than mapped over the whole roster: one character sits the case
+          // out, and sending them with a defaulted side would cast somebody the user
+          // deliberately left in the middle. There is no model field here, and there is
+          // nowhere in the app to type one.
+          const cast = castable
+            .map((character) => ({ id: character.id, side: sides[character.id] }))
+            .filter((entry): entry is { id: string; side: Side } => entry.side != null);
+
           const request: RunRequest = {
             chargeSheet,
             defendant: defendantId,
-            // Only the four advocates, each with the side it was pushed to. There is no
-            // model field here, and there is nowhere in the app to type one.
-            advocates: advocates.map((advocate) => ({
-              id: advocate.id,
-              side: (sides[advocate.id] ?? "for"),
-            })),
+            advocates: cast,
             mode,
           };
           // The one line in the app that spends anything. It runs on a click, once.

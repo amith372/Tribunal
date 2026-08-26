@@ -204,8 +204,10 @@ describe("the record itself", () => {
     expect(result.casting).toHaveLength(4);
     expect(result.casting.filter((c) => c.side === "for")).toHaveLength(2);
     expect(result.casting.filter((c) => c.side === "against")).toHaveLength(2);
-    // specs.md Part 1: the defendant is never also an advocate.
-    expect(result.casting.map((c) => c.id)).not.toContain(result.defendant.id);
+    // specs.md Part 1: the accused may answer the charge from a defence seat and may
+    // never prosecute, so the record's guarantee is about the side and not the presence.
+    const accused = result.casting.find((c) => c.id === result.defendant.id);
+    expect(accused?.side).not.toBe("against");
   });
 
   it("is a pure function of its input — same input, same record", async () => {

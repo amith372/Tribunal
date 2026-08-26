@@ -245,8 +245,10 @@ export function Run({
       <div className="run">
         <div className="run-charge">
           <span className="display run-charge-label">The charge</span>
-          {/* The accused, and the only place on this screen they appear: the four cards
-              below are the advocates, and specs.md Part 1 keeps the defendant out of them. */}
+          {/* The accused, named beside the charge. Since Part 1 lets them hold a defence
+              seat, they may also appear below as one of the four advocate cards — which is
+              not a duplicate but the two things they are, and the tones say which is which:
+              this chip is `accused`, the card down there is `defense`. */}
           <span className="run-charge-accused">
             <CharacterTile
               characterId={defendantId}

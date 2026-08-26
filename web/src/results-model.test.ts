@@ -127,7 +127,7 @@ function record(over: Partial<RunRecordView> = {}): RunRecordView {
   ];
   const judges = [
     judge("barak", "Aharon Barak", "guilty"),
-    judge("beinisch", "Dorit Beinisch", "not_guilty"),
+    judge("elon", "Menachem Elon", "not_guilty"),
     judge("shamgar", "Meir Shamgar", "guilty"),
   ];
   const outcome: RunOutcome = {
@@ -333,7 +333,7 @@ describe("the closing slide", () => {
     const closing = closingLines(record());
     expect(closing.lead).toContain("Four advocates each spoke once");
     expect(closing.lead).toContain("two of them found guilty");
-    expect(closing.note).toContain("Dorit Beinisch stood alone");
+    expect(closing.note).toContain("Menachem Elon stood alone");
     expect(closing.note).toContain("not guilty");
     // The reasoning belongs to the judge and stays on the bench panel, in their words.
     expect(closing.note).toContain("in their own words");
@@ -343,7 +343,7 @@ describe("the closing slide", () => {
     const run = record({
       judges: [
         judge("barak", "Aharon Barak", "guilty"),
-        judge("beinisch", "Dorit Beinisch", "guilty"),
+        judge("elon", "Menachem Elon", "guilty"),
         judge("shamgar", "Meir Shamgar", "guilty"),
       ],
       outcome: { kind: "verdict", verdict: "guilty", tally: { guilty: 3, notGuilty: 0, failed: 0 } },
@@ -355,7 +355,7 @@ describe("the closing slide", () => {
     const run = record({
       judges: [
         judge("barak", "Aharon Barak", "guilty"),
-        judge("beinisch", "Dorit Beinisch", "guilty"),
+        judge("elon", "Menachem Elon", "guilty"),
         judge("shamgar", "Meir Shamgar", null),
       ],
       outcome: { kind: "verdict", verdict: "guilty", tally: { guilty: 2, notGuilty: 0, failed: 1 } },
@@ -385,7 +385,7 @@ describe("the closing slide", () => {
     const run = record({
       judges: [
         judge("barak", "Aharon Barak", "guilty"),
-        judge("beinisch", "Dorit Beinisch", "not_guilty"),
+        judge("elon", "Menachem Elon", "not_guilty"),
         judge("shamgar", "Meir Shamgar", null),
       ],
       outcome: { kind: "hung", tally: { guilty: 1, notGuilty: 1, failed: 1 } },

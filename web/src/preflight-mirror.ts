@@ -187,7 +187,7 @@ export function setupChecks(
   const split: Check = {
     id: "split",
     status: "pending",
-    text: "Two for and two against — set on the next screen.",
+    text: "Two for and two against, four of the five — set on the next screen.",
   };
 
   return [roster, named, charge, split];
@@ -206,24 +206,58 @@ export function chargeIsReady(
     .every((check) => check.status === "pass");
 }
 
-/** The four advocates: everyone who is not the defendant. */
-export function advocatesOf(
-  characters: readonly Character[],
+/** Four seats, two a side — the server's `ADVOCATE_SEATS` and `SEATS_PER_SIDE`. */
+export const ADVOCATE_SEATS = 4;
+export const SEATS_PER_SIDE = 2;
+
+/**
+ * Everyone the user may cast: all five, the accused included.
+ *
+ * The accused is castable because specs.md Part 1 lets them answer the charge from a
+ * defence seat. Four of the five are then cast and one sits the case out, which is why
+ * this returns the whole roster rather than "everyone else".
+ */
+export function castableCharacters(characters: readonly Character[]): readonly Character[] {
+  return characters;
+}
+
+/** Whether this character may be pushed to this side at all. */
+export function sideIsOpenTo(
+  characterId: string,
+  side: Side,
   defendantId: string | null,
-): readonly Character[] {
-  return characters.filter((character) => character.id !== defendantId);
+): boolean {
+  // Nobody prosecutes themselves. The screen makes it unreachable; the server checks it
+  // anyway, and its `defendant_prosecuting` refusal is the one that decides.
+  return !(side === "against" && characterId === defendantId);
 }
 
 export function countSide(draft: SetupDraft, side: Side): number {
   return Object.values(draft.sides).filter((value) => value === side).length;
 }
 
+/** How many of the castable characters are still in the middle. */
+export function uncastCount(draft: SetupDraft, castable: readonly Character[]): number {
+  return castable.filter((character) => !draft.sides[character.id]).length;
+}
+
 /**
- * Whether the casting is complete: exactly two defending and two prosecuting, and nobody
- * left in the middle. The server checks this again and independently.
+ * Whether the casting is complete: exactly two defending and two prosecuting, drawn from
+ * the roster, with the accused nowhere near the prosecution. One character is left in the
+ * middle by construction, so "nobody uncast" is no longer the test — "every seat filled"
+ * is. The server checks all of it again and independently.
  */
-export function castingIsReady(draft: SetupDraft, advocates: readonly Character[]): boolean {
-  if (advocates.length !== 4) return false;
-  if (advocates.some((advocate) => !draft.sides[advocate.id])) return false;
-  return countSide(draft, "for") === 2 && countSide(draft, "against") === 2;
+export function castingIsReady(
+  draft: SetupDraft,
+  castable: readonly Character[],
+  defendantId: string | null,
+): boolean {
+  if (castable.length < ADVOCATE_SEATS) return false;
+  for (const character of castable) {
+    const side = draft.sides[character.id];
+    if (side && !sideIsOpenTo(character.id, side, defendantId)) return false;
+  }
+  return (
+    countSide(draft, "for") === SEATS_PER_SIDE && countSide(draft, "against") === SEATS_PER_SIDE
+  );
 }

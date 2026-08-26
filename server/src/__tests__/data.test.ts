@@ -37,8 +37,8 @@ describe("judges", () => {
     expect(data.judges).toHaveLength(3);
   });
 
-  it("are the three court presidents, each with a persona", () => {
-    expect(data.judges.map((j) => j.id).sort()).toEqual(["barak", "beinisch", "shamgar"]);
+  it("are the three named justices, each with a persona", () => {
+    expect(data.judges.map((j) => j.id).sort()).toEqual(["barak", "elon", "shamgar"]);
     for (const judge of data.judges) expect(judge.persona.length).toBeGreaterThan(20);
   });
 });

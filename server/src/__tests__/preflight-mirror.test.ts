@@ -42,7 +42,7 @@ import { PREFLIGHT_CASES } from "./preflight-cases.js";
 // would defeat the entire point of the test.
 import type { Character, PreflightRules, Side } from "../../../web/src/api.js";
 import {
-  advocatesOf,
+  castableCharacters,
   castingIsReady,
   chargeIsReady,
   countWords,
@@ -103,10 +103,14 @@ function asDraft(input: PreflightInput): SetupDraft | null {
 
 /** Whether the screens would let this draft reach a Run button that is not disabled. */
 function screenAccepts(draft: SetupDraft): boolean {
-  const advocates = advocatesOf(CHARACTERS, draft.defendantId);
+  const castable = castableCharacters(CHARACTERS);
   // Both halves, because the two setup screens each own one: Setup answers the charge
-  // sheet and the defendant, Side Select answers the split.
-  return chargeIsReady(draft, RULES, CHARACTERS) && castingIsReady(draft, advocates);
+  // sheet and the defendant, Side Select answers the split — which now includes whether
+  // the accused ended up on the side that accuses them.
+  return (
+    chargeIsReady(draft, RULES, CHARACTERS) &&
+    castingIsReady(draft, castable, draft.defendantId)
+  );
 }
 
 describe("the browser's pre-flight mirror agrees with the server's pre-flight", () => {

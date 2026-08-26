@@ -53,7 +53,7 @@ const bench = (script: Record<string, readonly (string | ErrorKind)[]>, extra = 
 
 const ALL_THREE = {
   "judge:barak": [NOT_GUILTY],
-  "judge:beinisch": [GUILTY],
+  "judge:elon": [GUILTY],
   "judge:shamgar": [NOT_GUILTY],
 };
 
@@ -62,7 +62,7 @@ describe("a bench where every judge answers in the form asked for", () => {
     const { calls, result } = bench(ALL_THREE);
     const judging = await result;
 
-    expect(judging.judges.map((judge) => judge.judgeId)).toEqual(["barak", "beinisch", "shamgar"]);
+    expect(judging.judges.map((judge) => judge.judgeId)).toEqual(["barak", "elon", "shamgar"]);
     expect(judging.judges.map((judge) => judge.verdict)).toEqual([
       "not_guilty",
       "guilty",

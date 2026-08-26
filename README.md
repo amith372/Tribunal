@@ -1,9 +1,10 @@
 # The Tribunal
 
-A charge sheet goes in. Four advocates — two for, two against, cast by you — each make
-one statement. Three judges, modelled on real Israeli Supreme Court presidents, each
-return a verdict and their reasoning. The app shows the majority verdict with a real
-token and price breakdown, and exports the run as a self-contained HTML file.
+A charge sheet goes in. Four advocates — two for, two against, cast by you from the five
+characters, the accused included — each make one statement. Three judges, modelled on the
+reasoning of real Israeli Supreme Court justices, each return a verdict and their
+reasoning. The app shows the majority verdict with a real token and price breakdown, and
+exports the run as a self-contained HTML file.
 
 Seven free OpenRouter model calls per run. The server archives every finished run; **the
 exported HTML file is the portable copy**, rebuildable from the archive as well as from a
@@ -12,7 +13,8 @@ run still in flight.
 - `specs.md` — what to build, in five prose parts. The source of truth.
 - `CLAUDE.md` — how to build, for the agent.
 - `data/` — the five characters, their relations, and the three judges. The only source
-  of character facts.
+  of character facts. The descriptions are voice and values only: no places, houses,
+  titles or events, because a name is a fact and these files are not a fact source.
 
 ## Running it locally
 

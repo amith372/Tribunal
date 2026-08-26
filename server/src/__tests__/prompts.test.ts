@@ -38,7 +38,14 @@ function part4Run(): ValidRun {
 
 const run = part4Run();
 const advocates = run.advocates;
-const cersei = advocates.find((a) => a.character.id === "cersei")!;
+/**
+ * Part 4's casting is Jon (the accused) and Tyrion defending, Daenerys and Grey Worm
+ * prosecuting, with Cersei sitting the case out. Tyrion is therefore the ordinary
+ * advocate — someone other than the accused, arguing about someone else — and Jon is the
+ * special one, which the last describe block in this file is about.
+ */
+const tyrion = advocates.find((a) => a.character.id === "tyrion")!;
+const jon = advocates.find((a) => a.character.id === "jon-snow")!;
 const greyWorm = advocates.find((a) => a.character.id === "grey-worm")!;
 
 const STATEMENTS: readonly DeliveredStatement[] = [
@@ -61,12 +68,12 @@ describe("every prompt in the run", () => {
     const prompts = allSeven();
     expect(prompts).toHaveLength(7);
     expect(prompts.map((prompt) => prompt.label)).toEqual([
+      "advocate:jon-snow",
       "advocate:tyrion",
-      "advocate:cersei",
       "advocate:daenerys",
       "advocate:grey-worm",
       "judge:barak",
-      "judge:beinisch",
+      "judge:elon",
       "judge:shamgar",
     ]);
   });
@@ -142,40 +149,82 @@ describe("every prompt in the run", () => {
   });
 });
 
+describe("the accused arguing their own defence", () => {
+  // specs.md Part 1 lets the defendant hold a defence seat, which makes two of the
+  // advocate prompt's blocks nonsense as written — one describing "the defendant" to the
+  // defendant, another reporting what is on record between them and themselves.
+  const prompt = text(buildAdvocatePrompt(run, jon, data));
+
+  it("does not describe the defendant to the defendant", () => {
+    // The description is there once, as WHO YOU ARE. It must not also arrive as a
+    // third-party briefing about the person reading it.
+    const description = data.getCharacter("jon-snow")!.description;
+    expect(prompt.split(description)).toHaveLength(2);
+    expect(prompt).not.toContain("THE DEFENDANT, Jon Snow:");
+  });
+
+  it("says they are the accused rather than reporting an empty relation", () => {
+    expect(prompt).toContain("You are the accused.");
+    expect(prompt).not.toContain("Nothing between you and Jon Snow is on record.");
+    expect(prompt).not.toContain("YOUR STANDING WITH JON SNOW");
+  });
+
+  it("asks them to answer the charge, not to defend somebody else", () => {
+    expect(prompt).toContain("You are answering the charge yourself.");
+    expect(prompt).toContain("make your statement in answer to the charge");
+    expect(prompt).not.toContain("defending Jon Snow");
+  });
+
+  it("still names the ally, the grounding rule and the word cap", () => {
+    // Everything the seat carries is unchanged; only the three blocks above are.
+    expect(prompt).toContain("Tyrion Lannister argues your side as well");
+    expect(prompt).toContain("THE GROUNDING RULE");
+    expect(prompt).toContain("Spin the facts; invent none.");
+  });
+
+  it("leaks no other character's description and no relation at all", () => {
+    for (const id of ["tyrion", "cersei", "daenerys", "grey-worm"]) {
+      expect(prompt).not.toContain(data.getCharacter(id)!.description);
+    }
+    for (const relation of data.relations) {
+      expect(prompt).not.toContain(relation.text);
+    }
+  });
+});
+
 describe("an advocate's prompt", () => {
   it("gives the advocate its own description, the defendant's, and their relation", () => {
-    const prompt = text(buildAdvocatePrompt(run, cersei, data));
-    expect(prompt).toContain(data.getCharacter("cersei")!.description);
+    const prompt = text(buildAdvocatePrompt(run, tyrion, data));
+    expect(prompt).toContain(data.getCharacter("tyrion")!.description);
     expect(prompt).toContain(data.getCharacter("jon-snow")!.description);
-    expect(prompt).toContain(data.getRelation("cersei", "jon-snow")!.text);
+    expect(prompt).toContain(data.getRelation("tyrion", "jon-snow")!.text);
   });
 
   it("gives no other character's description", () => {
-    const prompt = text(buildAdvocatePrompt(run, cersei, data));
-    for (const id of ["tyrion", "daenerys", "grey-worm"]) {
+    const prompt = text(buildAdvocatePrompt(run, tyrion, data));
+    for (const id of ["cersei", "daenerys", "grey-worm"]) {
       expect(prompt).not.toContain(data.getCharacter(id)!.description);
     }
   });
 
   it("gives no relation other than its own with the defendant", () => {
-    const prompt = text(buildAdvocatePrompt(run, cersei, data));
+    const prompt = text(buildAdvocatePrompt(run, tyrion, data));
     for (const relation of data.relations) {
       const isOwn =
-        (relation.a === "cersei" && relation.b === "jon-snow") ||
-        (relation.a === "jon-snow" && relation.b === "cersei");
+        (relation.a === "tyrion" && relation.b === "jon-snow") ||
+        (relation.a === "jon-snow" && relation.b === "tyrion");
       if (!isOwn) expect(prompt).not.toContain(relation.text);
     }
   });
 
   it("assigns the side the user cast, not one of its own choosing", () => {
-    // Part 4 casts Cersei to defend the man she spent a war fighting. That is the point.
-    expect(text(buildAdvocatePrompt(run, cersei, data))).toContain("defending Jon Snow");
+    expect(text(buildAdvocatePrompt(run, tyrion, data))).toContain("defending Jon Snow");
     expect(text(buildAdvocatePrompt(run, greyWorm, data))).toContain("prosecuting Jon Snow");
   });
 
   it("names the ally on its own side and no one else's argument", () => {
-    const prompt = text(buildAdvocatePrompt(run, cersei, data));
-    expect(prompt).toContain("Tyrion Lannister argues your side as well");
+    const prompt = text(buildAdvocatePrompt(run, tyrion, data));
+    expect(prompt).toContain("Jon Snow argues your side as well");
     expect(prompt).toContain("You will not hear what any of them say");
   });
 
@@ -183,7 +232,9 @@ describe("an advocate's prompt", () => {
     for (const advocate of advocates) {
       const prompt = text(buildAdvocatePrompt(run, advocate, data));
       expect(prompt).toContain("Spin the facts; invent none.");
-      // The line exists because characters.md tells Cersei she twists facts to win.
+      // The line exists because two of the descriptions in characters.md are adversarial
+      // by temperament — pressing what helps, making little of what does not — and that
+      // is a short step from inventing what would help if only it were there.
       expect(prompt).toContain("twist the reading, never the record");
     }
   });

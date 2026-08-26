@@ -47,7 +47,8 @@ console.log(`  · charge sheet present, ${MIN_CHARGE_SHEET_WORDS}–${MAX_CHARGE
 console.log("  · charge sheet reads as an accusation or a question, not just a description");
 console.log("  · defendant is one of the five characters in data/characters.md");
 console.log("  · defendant is named in the charge sheet (whole word, any case)");
-console.log("  · the four advocates are the other four characters, each cast once");
+console.log("  · four advocates, each a different one of the five characters — one sits out");
+console.log("  · the accused may hold a defence seat, and may never prosecute themselves");
 console.log("  · the split is exactly two defending and two prosecuting\n");
 
 console.log("Names searched for in the charge sheet — given names only, never a shared surname:");

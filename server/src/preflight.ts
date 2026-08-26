@@ -38,8 +38,7 @@ export type PreflightFailureCode =
   | "advocates_wrong_count"
   | "advocate_unknown"
   | "advocate_duplicated"
-  | "advocate_is_defendant"
-  | "advocates_not_the_others"
+  | "defendant_prosecuting"
   | "advocate_side_invalid"
   | "split_not_two_two";
 
@@ -76,16 +75,33 @@ export type PreflightResult =
   | { readonly ok: false; readonly failures: readonly PreflightFailure[]; readonly run: null };
 
 /**
- * Charge-sheet length. The 200-word ceiling is specs.md Part 1.
+ * Charge-sheet length. The 300-word ceiling is specs.md Part 1.
+ *
+ * **Raised from 200 to 300** when the default case became the canonical charge sheet —
+ * an act alleged, an agreed factual record, and the question put to the tribunal. That
+ * shape does not fit in 200 words, and the alternative was a default case that arrived
+ * already abridged, which would have made the app's own worked example the one charge
+ * sheet no advocate could argue in full.
  *
  * The 10-word floor exists because the ceiling and the name check between them do not
  * stop a one-word run: a charge sheet reading only "Jon" names the defendant and is
- * under 200 words, and would reach seven model calls with nothing for the advocates to
+ * under the ceiling, and would reach seven model calls with nothing for the advocates to
  * argue from but their own invention — which Part 1's grounding rule forbids and Part 5
  * names as a pitfall.
  */
 export const MIN_CHARGE_SHEET_WORDS = 10;
-export const MAX_CHARGE_SHEET_WORDS = 200;
+export const MAX_CHARGE_SHEET_WORDS = 300;
+
+/**
+ * The bench of advocates: four seats, two a side.
+ *
+ * Four is a fixed number of seats rather than "everyone who is not the defendant"
+ * (specs.md Part 1). The accused may take a defence seat, so the four are drawn from all
+ * five characters and one character sits out — which is why this is a constant and not
+ * `characters.length - 1`.
+ */
+export const ADVOCATE_SEATS = 4;
+export const SEATS_PER_SIDE = 2;
 
 /**
  * The names searched for in the charge sheet, per character.
@@ -264,18 +280,18 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
     fail(
       "advocates_missing",
       "advocates",
-      "No advocates were cast. The four characters who are not the defendant each argue one " +
-        "side — two defending, two prosecuting.",
+      "No advocates were cast. Four of the five characters argue — two defending, two " +
+        "prosecuting. The accused may take a defence seat; one character sits out.",
     );
   } else {
-    const expected = data.characters.length - 1;
-    if (rawAdvocates.length !== expected) {
+    if (rawAdvocates.length !== ADVOCATE_SEATS) {
       castIsClean = false;
       fail(
         "advocates_wrong_count",
         "advocates",
-        `The tribunal needs exactly ${expected} advocates — every character who is not the ` +
-          `defendant. ${rawAdvocates.length} ${rawAdvocates.length === 1 ? "was" : "were"} cast.`,
+        `The tribunal seats exactly ${ADVOCATE_SEATS} advocates, drawn from the ` +
+          `${data.characters.length} characters — one of them sits the case out. ` +
+          `${rawAdvocates.length} ${rawAdvocates.length === 1 ? "was" : "were"} cast.`,
       );
     }
 
@@ -303,14 +319,6 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
           "advocates",
           `${character.name} is cast twice. Each of the four advocates is a different character.`,
         );
-      } else if (defendant && character.id === defendant.id) {
-        castIsClean = false;
-        // Part 1 non-negotiable: the defendant is never also an advocate.
-        fail(
-          "advocate_is_defendant",
-          "advocates",
-          `${character.name} is on trial and cannot also argue the case. Cast the other four.`,
-        );
       }
 
       if (character) seen.add(character.id);
@@ -325,6 +333,20 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
         );
       }
 
+      // Part 1: the accused may argue their own defence, and only that. Deliberately not
+      // gated behind `castIsClean` and deliberately not setting it — a defendant put on
+      // the prosecution and a lopsided split are two separate mistakes, and a user who
+      // made both should be told both rather than sent back twice.
+      if (character && defendant && character.id === defendant.id && side === "against") {
+        fail(
+          "defendant_prosecuting",
+          "advocates",
+          `${character.name} is the accused. The accused may answer the charge from the ` +
+            "defence, but nobody prosecutes themselves — move them to the defence or leave " +
+            "them out of the casting.",
+        );
+      }
+
       if (character && side) cast.push({ character, side });
     }
 
@@ -333,7 +355,7 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
     if (castIsClean) {
       const forCount = cast.filter((advocate) => advocate.side === "for").length;
       const againstCount = cast.length - forCount;
-      if (forCount !== 2 || againstCount !== 2) {
+      if (forCount !== SEATS_PER_SIDE || againstCount !== SEATS_PER_SIDE) {
         // specs.md Part 4's second invalid case: a three-to-one split.
         fail(
           "split_not_two_two",
@@ -341,23 +363,6 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
           "The split must be exactly two defending and two prosecuting. This casting is " +
             `${forCount} ${SIDE_LABEL.for} and ${againstCount} ${SIDE_LABEL.against}.`,
         );
-      }
-
-      // Belt and braces: with five characters, four unique non-defendant advocates can
-      // only be the other four, so this cannot fire today. It is what would catch a sixth
-      // character being added to characters.md without casting being revisited.
-      if (defendant) {
-        const missing = data.characters.filter(
-          (character) => character.id !== defendant.id && !seen.has(character.id),
-        );
-        if (missing.length > 0) {
-          fail(
-            "advocates_not_the_others",
-            "advocates",
-            "The advocates must be the four characters who are not the defendant. Not cast: " +
-              `${missing.map((character) => character.name).join(", ")}.`,
-          );
-        }
       }
     }
   }

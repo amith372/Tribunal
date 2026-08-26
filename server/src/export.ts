@@ -26,7 +26,7 @@
  *      Cinzel, subsetted, in `export-font.ts` (see `scripts/embed-font.ts` for why the
  *      display face is embedded and the reading text is not).
  *
- *   4. **Everything from a model is escaped.** Up to 200 words of user charge sheet and
+ *   4. **Everything from a model is escaped.** Up to 300 words of user charge sheet and
  *      seven model replies land in this file. All of it goes through `escapeHtml`, and
  *      there is no path that writes an unescaped value.
  *
@@ -787,9 +787,11 @@ ${record.attempts.map(rawBlock).join("\n")}
 
 <footer>
   <p>The three judges are <strong>fictional simulations</strong>, written for this
-  exercise and given the names of real presidents of the Supreme Court of Israel. Nothing
-  here represents anything those people said, wrote, or would say. The defendant and the
-  advocates are fictional characters, and the trial never happened.</p>
+  exercise and given the names of real justices of the Supreme Court of Israel. Their
+  reasoning habits were adapted from published opinions; nothing here represents anything
+  those people said, wrote, or would say, and none of it predicts how any of them would
+  decide anything. The defendant and the advocates are fictional characters, and the
+  trial never happened.</p>
   <p>Every model call in this run used a free model. Token counts and prices are read
   from the API's own response, never estimated. Run started ${escapeHtml(
     record.startedAt,

@@ -40,11 +40,11 @@ const run = part4Run();
 
 const SPOKEN = {
   "advocate:tyrion": ["The realm was already burning when he acted."],
-  "advocate:cersei": ["He removed my rival. I will not pretend that troubles me."],
+  "advocate:jon-snow": ["I did it. I would tell you why, and then you may call it what you like."],
   "advocate:daenerys": ["He was sworn to me, and he came to me as a lover."],
   "advocate:grey-worm": ["He killed our queen. This is murder."],
   "judge:barak": ["Verdict: guilty. He killed her. He was sworn to her."],
-  "judge:beinisch": ["Verdict: guilty. The powerful stay accountable. She was unarmed."],
+  "judge:elon": ["Verdict: guilty. The powerful stay accountable. She was unarmed."],
   "judge:shamgar": ["Verdict: not guilty. The city was at stake. The law bends to necessity."],
 };
 
@@ -132,7 +132,7 @@ describe("the whole-run deadline", () => {
   it("stops a run whose advocates never come back, and never asks the bench", async () => {
     const { call, calls } = slowCaller({
       "advocate:tyrion": 500,
-      "advocate:cersei": 500,
+      "advocate:jon-snow": 500,
       "advocate:daenerys": 500,
       "advocate:grey-worm": 500,
     });
@@ -158,7 +158,7 @@ describe("the whole-run deadline", () => {
     // Casting order, all four present — a gap is written in, never left out.
     expect(record.statements).toHaveLength(4);
     expect(record.statements.map((s) => s.advocateId)).toEqual([
-      "tyrion", "cersei", "daenerys", "grey-worm",
+      "jon-snow", "tyrion", "daenerys", "grey-worm",
     ]);
     expect(record.statements.find((s) => s.advocateId === "tyrion")?.ok).toBe(true);
     expect(record.statements.filter((s) => !s.ok)).toHaveLength(3);
@@ -185,7 +185,7 @@ describe("the whole-run deadline", () => {
   it("emits nothing behind the record, however late a call lands", async () => {
     const { events, emit } = recorder();
     const call = async (options: CallOptions): Promise<CallResult> => {
-      await sleep(options.label === "advocate:cersei" ? 120 : 0);
+      await sleep(options.label === "advocate:jon-snow" ? 120 : 0);
       return fakeResult(options, "A statement about the case that was made.");
     };
 
@@ -201,7 +201,7 @@ describe("the whole-run deadline", () => {
 describe("the account's daily allowance", () => {
   const capped = {
     "advocate:tyrion": ["daily_limit"],
-    "advocate:cersei": ["daily_limit"],
+    "advocate:jon-snow": ["daily_limit"],
     "advocate:daenerys": ["daily_limit"],
     "advocate:grey-worm": ["daily_limit"],
   } as const;
@@ -230,7 +230,7 @@ describe("the account's daily allowance", () => {
     // silenced side and advise trying again — which is wrong advice until tomorrow.
     const { call, calls } = scriptedCaller({
       "advocate:tyrion": ["The realm was already burning."],
-      "advocate:cersei": ["He removed my rival."],
+      "advocate:jon-snow": ["I did it."],
       "advocate:daenerys": ["daily_limit"],
       "advocate:grey-worm": ["daily_limit"],
     });
@@ -247,7 +247,7 @@ describe("a run the models spoiled", () => {
   it("aborts on a silenced side and never reaches the bench", async () => {
     const { call, calls } = scriptedCaller({
       "advocate:tyrion": ["The realm was already burning."],
-      "advocate:cersei": ["He removed my rival."],
+      "advocate:jon-snow": ["I did it."],
       "advocate:daenerys": ["server_error"],
       "advocate:grey-worm": ["server_error"],
     });
@@ -260,7 +260,7 @@ describe("a run the models spoiled", () => {
   });
 
   it("survives one failed advocate and still reaches a verdict", async () => {
-    const { call } = scriptedCaller({ ...SPOKEN, "advocate:cersei": ["server_error"] });
+    const { call } = scriptedCaller({ ...SPOKEN, "advocate:jon-snow": ["server_error"] });
     const { events, emit } = recorder();
 
     const record = await executeRun({ run, data, models: MODELS, emit, call });

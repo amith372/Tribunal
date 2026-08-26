@@ -5,7 +5,7 @@ Standing instructions for Claude Code in this repo. This is the only file loaded
 > **This file = *how* to build.** **`specs.md` = *what* to build** — five prose parts, read on demand, never auto-loaded. It is the source of truth for behavior and wins if the two disagree.
 
 ## What this is
-A school project for a vibe-coding class. A charge sheet goes in; four advocates — two for, two against, cast by the user — each make one statement; three judges each return a verdict and reasoning; the app shows the majority verdict with a real token and price breakdown, and exports the run as a self-contained HTML file. Seven free OpenRouter model calls per run. **The graded deliverable is the specification and the record of how we collaborate with and verify the AI** — the running app matters less than showing that process. So when an unwritten decision comes up, resolve it toward what makes the spec correct and the process legible.
+A school project for a vibe-coding class. A charge sheet goes in; four advocates — two for, two against, cast by the user from the five characters, the accused included — each make one statement; three judges each return a verdict and reasoning; the app shows the majority verdict with a real token and price breakdown, and exports the run as a self-contained HTML file. Seven free OpenRouter model calls per run. **The graded deliverable is the specification and the record of how we collaborate with and verify the AI** — the running app matters less than showing that process. So when an unwritten decision comes up, resolve it toward what makes the spec correct and the process legible.
 
 ## Stack
 | Layer | Choice |
@@ -14,6 +14,7 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 | Frontend | React + Vite + TypeScript, single page, SSE-driven |
 | Assets | Avatar art: 17 source PNGs in `C:\Users\Amit_PC\Downloads\Tribunal` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.png` / `undone_judge.png`. Downsample to ≤256 px WebP into `web/public/avatars/`; commit the WebP only, never the multi-MB originals |
 | Models | OpenRouter, free (`:free`) models only, identifiers server-side |
+| Case data | `data/characters.md`, `data/relations.md`, `data/judges.md` — the only source of character facts. Five characters, ten relations, three judges (Barak, Elon, Shamgar), each judge's persona adapted from three of their reported opinions, which the file cites |
 | Persistence | MongoDB Atlas archives every finished run server-side (`MONGODB_URI` / `MONGODB_DB`, unset means no archive and the app degrades cleanly); the exported HTML file is the portable copy, rebuildable from the archive |
 | Deploy | Render free Web Service, kept awake by an external keep-warm pinger; `OPENROUTER_API_KEY` is a Render env var, never in the repo |
 | Tests | Vitest in **both** workspaces; `npm test` runs both. Server: pre-flight, judge parser, aggregation, model guard, the export and its palette against `tokens.css`, and the archive's round trip — a record survives being broken into the archive's two documents and put back together identical, byte-identical export included, with no test opening a real database connection. Web: the sentences the results panels derive from a record — and those same sentences are held against the server's copy from the *server* suite, since the exported file and the panels must word a run identically. The client's pre-flight mirror is tested from the *server* suite on purpose — it exists to agree with the server's pre-flight, and a test beside only one of them cannot check agreement |
@@ -29,12 +30,12 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 ## Non-negotiables
 Duplicated here on purpose, so they still hold in a session that never opens `specs.md`. On any conflict, `specs.md` wins.
 
-- Personas are voice only, never a fact source; a missing fact is labelled an assumption. (Part 1)
+- Personas are voice only, never a fact source; a missing fact is labelled an assumption. The character descriptions carry manner, values and argumentative habit and no plot at all — no place, house, office, army or event — because a name is a fact. (Part 1)
 - No model call before the pre-flight check passes. (Parts 1 & 4)
 - Judges return one verdict (`guilty`/`not_guilty`) plus reasoning — salvaged leniently from the text, retried once, never fabricated. (Part 5)
 - Token and price numbers are read from the API response, never invented. (Parts 1–2)
 - Free models only: an allowlist plus the `:free` rule, enforced server-side. No env var, flag, or request field may permit a paid model. (Parts 1–2, 5)
-- The defendant is never also an advocate, and the split is exactly 2 for / 2 against. (Part 1)
+- The accused may argue their own defence and may never prosecute themselves. Four seats are drawn from all five characters, so one character sits every case out, and the split is exactly 2 for / 2 against. (Part 1)
 - The HTML export is the portable run record — self-contained, opens offline, numbers matching the app — rebuildable from the archive as well as from a run still in flight. (Part 3)
 - A browser's archive list is per-browser: the server archives every run, but a browser lists only the ids it kept itself, and character relations stored with an archived run stay server-side, never reaching the browser or the export. (Part 3)
 

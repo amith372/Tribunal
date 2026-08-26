@@ -20,14 +20,51 @@ export interface PreflightCase {
   readonly expect: "pass" | readonly PreflightFailureCode[];
 }
 
-/** specs.md Part 4: Jon on trial, Tyrion and Cersei defending, Daenerys and Grey Worm prosecuting. */
+/**
+ * specs.md Part 4's canonical charge sheet: case T-001, the act alleged, the agreed
+ * factual record, and the question put to the tribunal.
+ *
+ * It is 243 words, which is why the ceiling is 300 and not 200. The agreed record is the
+ * part that earns the length: an advocate arguing from the act alone would have to invent
+ * the circumstances, and inventing is the one thing an advocate may never do.
+ */
 export const PART_4_CHARGE_SHEET =
-  "Jon Snow is charged with regicide and treason: that he killed Queen Daenerys Targaryen " +
-  "in the throne room at King's Landing, by his own hand, after swearing her his loyalty. " +
-  "The tribunal must decide whether that killing was murder or the prevention of a greater " +
-  "slaughter.";
+  "Case T-001: The Realm v. Jon Snow. Accused: Jon Snow. Deceased: Daenerys Targaryen. " +
+  "The act alleged is that Jon Snow intentionally killed Daenerys Targaryen, stabbing her " +
+  "during a private meeting in the throne room after the fall of King's Landing. " +
+  "The agreed factual record: King's Landing had surrendered — its bells rang and " +
+  "organised resistance had ceased — and Daenerys then used Drogon against the streets " +
+  "and the civilians in them, causing destruction on a vast scale. After the victory she " +
+  "told her assembled forces that the campaign of liberation would continue beyond King's " +
+  "Landing; Jon had seen the city and heard the speech. Tyrion Lannister renounced his " +
+  "office as Hand and was imprisoned, having warned Jon that Daenerys would treat Jon's " +
+  "sisters, and anyone else she regarded as an obstacle, as enemies. Jon asked her to " +
+  "forgive Tyrion and to show mercy; she refused to let others choose what was good and " +
+  "presented her own judgement as decisive. Daenerys was unarmed and was not attacking Jon " +
+  "when he killed her. Jon used their intimacy to get close enough to strike, and he had " +
+  "not convened a council, attempted detention, or sought a public surrender of power. " +
+  "The question for judgment: was Jon Snow's intentional killing of Daenerys Targaryen " +
+  "justified as the necessary defence of others and of the realm, given what he knew, the " +
+  "scale of the threatened harm, the absence or presence of safer alternatives, and his " +
+  "lack of formal authority?";
 
+/**
+ * Part 4's casting: Jon answers the charge himself alongside Tyrion, Daenerys and Grey
+ * Worm prosecute, and Cersei sits the case out.
+ *
+ * The accused holding a defence seat is the point of the lineup, not an oversight — Part
+ * 1 permits it and permits nothing else for him, since nobody prosecutes themselves. It
+ * is also why four seats are drawn from five characters: somebody has to sit out.
+ */
 export const PART_4_CAST = [
+  { id: "jon-snow", side: "for" },
+  { id: "tyrion", side: "for" },
+  { id: "daenerys", side: "against" },
+  { id: "grey-worm", side: "against" },
+] as const;
+
+/** The same case cast without the accused: the four who are not on trial. */
+export const CAST_WITHOUT_DEFENDANT = [
   { id: "tyrion", side: "for" },
   { id: "cersei", side: "for" },
   { id: "daenerys", side: "against" },
@@ -46,7 +83,7 @@ function chargeSheetOf(wordCount: number): string {
 export const PREFLIGHT_CASES: readonly PreflightCase[] = [
   {
     id: "part4-valid",
-    title: "Part 4's case: Jon Snow, regicide and treason, 2 defending / 2 prosecuting",
+    title: "Part 4's case: Jon Snow, T-001, with the accused on his own defence",
     input: { chargeSheet: PART_4_CHARGE_SHEET, defendant: "jon-snow", advocates: PART_4_CAST },
     expect: "pass",
   },
@@ -74,6 +111,16 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
       ],
     },
     expect: ["split_not_two_two"],
+  },
+  {
+    id: "cast-without-the-accused",
+    title: "The accused may also sit out their own casting: the other four argue",
+    input: {
+      chargeSheet: PART_4_CHARGE_SHEET,
+      defendant: "jon-snow",
+      advocates: CAST_WITHOUT_DEFENDANT,
+    },
+    expect: "pass",
   },
   {
     id: "part4-defendant-not-named",
@@ -159,7 +206,7 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
   },
   {
     id: "charge-sheet-one-word",
-    title: "\"Jon\" alone names the defendant and is under 200 words — the floor stops it",
+    title: "\"Jon\" alone names the defendant and is under the ceiling — the floor stops it",
     input: { chargeSheet: "Jon", defendant: "jon-snow", advocates: PART_4_CAST },
     expect: ["charge_sheet_too_short"],
   },
@@ -170,15 +217,15 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
     expect: "pass",
   },
   {
-    id: "charge-sheet-exactly-200-words",
-    title: "Two hundred words is the ceiling, and passes",
-    input: { chargeSheet: chargeSheetOf(200), defendant: "jon-snow", advocates: PART_4_CAST },
+    id: "charge-sheet-exactly-300-words",
+    title: "Three hundred words is the ceiling, and passes",
+    input: { chargeSheet: chargeSheetOf(300), defendant: "jon-snow", advocates: PART_4_CAST },
     expect: "pass",
   },
   {
-    id: "charge-sheet-201-words",
-    title: "Two hundred and one words is refused",
-    input: { chargeSheet: chargeSheetOf(201), defendant: "jon-snow", advocates: PART_4_CAST },
+    id: "charge-sheet-301-words",
+    title: "Three hundred and one words is refused",
+    input: { chargeSheet: chargeSheetOf(301), defendant: "jon-snow", advocates: PART_4_CAST },
     expect: ["charge_sheet_too_long"],
   },
   {
@@ -206,8 +253,8 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
     expect: "pass",
   },
   {
-    id: "defendant-also-an-advocate",
-    title: "The defendant can never also argue the case",
+    id: "defendant-on-the-defence",
+    title: "The accused may answer the charge from a defence seat",
     input: {
       chargeSheet: PART_4_CHARGE_SHEET,
       defendant: "jon-snow",
@@ -218,7 +265,37 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
         { id: "grey-worm", side: "against" },
       ],
     },
-    expect: ["advocate_is_defendant"],
+    expect: "pass",
+  },
+  {
+    id: "defendant-prosecuting-himself",
+    title: "The accused can never prosecute themselves",
+    input: {
+      chargeSheet: PART_4_CHARGE_SHEET,
+      defendant: "jon-snow",
+      advocates: [
+        { id: "tyrion", side: "for" },
+        { id: "cersei", side: "for" },
+        { id: "jon-snow", side: "against" },
+        { id: "grey-worm", side: "against" },
+      ],
+    },
+    expect: ["defendant_prosecuting"],
+  },
+  {
+    id: "defendant-prosecuting-and-a-bad-split",
+    title: "A defendant on the prosecution and a lopsided split are reported together",
+    input: {
+      chargeSheet: PART_4_CHARGE_SHEET,
+      defendant: "jon-snow",
+      advocates: [
+        { id: "tyrion", side: "for" },
+        { id: "jon-snow", side: "against" },
+        { id: "daenerys", side: "against" },
+        { id: "grey-worm", side: "against" },
+      ],
+    },
+    expect: ["defendant_prosecuting", "split_not_two_two"],
   },
   {
     id: "advocate-cast-twice",
@@ -237,7 +314,7 @@ export const PREFLIGHT_CASES: readonly PreflightCase[] = [
   },
   {
     id: "three-advocates",
-    title: "All four non-defendant characters must be cast",
+    title: "The tribunal seats exactly four advocates, no fewer",
     input: {
       chargeSheet: PART_4_CHARGE_SHEET,
       defendant: "jon-snow",

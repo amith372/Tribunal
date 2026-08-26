@@ -32,10 +32,11 @@ function part4Run(): ValidRun {
 
 const run = part4Run();
 
-/** Part 4's casting: tyrion + cersei defending, daenerys + grey-worm prosecuting. */
+/** Part 4's casting: jon-snow (the accused) + tyrion defending, daenerys + grey-worm
+ *  prosecuting. Cersei sits this case out. */
 const ALL_FOUR = {
   "advocate:tyrion": ["The realm was already burning when he acted."],
-  "advocate:cersei": ["He removed my rival. I will not pretend that troubles me."],
+  "advocate:jon-snow": ["I did it. I would tell you why, and then you may call it what you like."],
   "advocate:daenerys": ["He was sworn to me, and he came to me as a lover."],
   "advocate:grey-worm": ["He killed our queen. This is murder."],
 };
@@ -67,8 +68,8 @@ describe("a wave where all four advocates answer", () => {
 
     const statements = await runStatements({ run, data, mode: "per-role", models, call: slowFirst });
     expect(statements.statements.map((statement) => statement.advocateId)).toEqual([
+      "jon-snow",
       "tyrion",
-      "cersei",
       "daenerys",
       "grey-worm",
     ]);
@@ -129,24 +130,24 @@ describe("a wave where all four advocates answer", () => {
 
 describe("a wave where an advocate fails", () => {
   it("leaves a gap and carries on, rather than throwing the run away", async () => {
-    const { result } = wave({ ...ALL_FOUR, "advocate:cersei": ["server_error"] });
+    const { result } = wave({ ...ALL_FOUR, "advocate:jon-snow": ["server_error"] });
     const statements = await result;
 
     expect(statements.complete).toBe(false);
     expect(statements.abort).toBeNull();
     expect(statements.delivered).toHaveLength(3);
 
-    const cersei = statements.statements.find((statement) => statement.advocateId === "cersei")!;
-    expect(cersei.ok).toBe(false);
-    expect(cersei.text).toBeNull();
-    expect(cersei.errorKind).toBe("server_error");
-    expect(cersei.error).toContain("failed");
+    const jon = statements.statements.find((statement) => statement.advocateId === "jon-snow")!;
+    expect(jon.ok).toBe(false);
+    expect(jon.text).toBeNull();
+    expect(jon.errorKind).toBe("server_error");
+    expect(jon.error).toContain("failed");
     // The failed attempt still cost tokens, so it still belongs in the table.
-    expect(cersei.attempts).toHaveLength(1);
+    expect(jon.attempts).toHaveLength(1);
   });
 
   it("still gives the surviving side both its advocates", async () => {
-    const { result } = wave({ ...ALL_FOUR, "advocate:cersei": ["timeout"] });
+    const { result } = wave({ ...ALL_FOUR, "advocate:jon-snow": ["timeout"] });
     const delivered = toDeliveredStatements(await result);
     expect(delivered.filter((statement) => statement.side === "for")).toHaveLength(1);
     expect(delivered.filter((statement) => statement.side === "against")).toHaveLength(2);
@@ -158,7 +159,7 @@ describe("a wave where a whole side is lost", () => {
     const { result } = wave({
       ...ALL_FOUR,
       "advocate:tyrion": ["timeout"],
-      "advocate:cersei": ["server_error"],
+      "advocate:jon-snow": ["server_error"],
     });
     const statements = await result;
 
@@ -182,7 +183,7 @@ describe("a wave where a whole side is lost", () => {
   it("aborts when nothing at all arrived", async () => {
     const { result } = wave({
       "advocate:tyrion": ["timeout"],
-      "advocate:cersei": ["timeout"],
+      "advocate:jon-snow": ["timeout"],
       "advocate:daenerys": ["timeout"],
       "advocate:grey-worm": ["timeout"],
     });
@@ -199,7 +200,11 @@ describe("over-length, which is measured and not yet acted on", () => {
     const over = ADVOCATE_WORD_CAP + 30;
     const long = Array.from({ length: over }, () => "word").join(" ");
     const { result } = wave({ ...ALL_FOUR, "advocate:tyrion": [long] });
-    const tyrion = (await result).statements[0];
+    // Found by id rather than by position: the accused holds the first defence seat in
+    // Part 4's casting, so index 0 is Jon and not Tyrion.
+    const tyrion = (await result).statements.find(
+      (statement) => statement.advocateId === "tyrion",
+    )!;
 
     expect(tyrion.words).toBe(over);
     expect(tyrion.wordCap).toBe(ADVOCATE_WORD_CAP);
@@ -287,7 +292,7 @@ describe("a reply that is about the task rather than the case", () => {
     const result = await settled({
       ...ALL_FOUR,
       "advocate:tyrion": [META, META],
-      "advocate:cersei": [META, META],
+      "advocate:jon-snow": [META, META],
     });
 
     expect(result.abort?.reason).toBe("side_silenced");

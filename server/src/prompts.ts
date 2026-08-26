@@ -15,7 +15,7 @@
  *      advocate may read a motive the worst way and emphasise selectively; it may not
  *      manufacture a fact that is not in the charge sheet or the data files.
  *
- *   2. **The charge sheet is delimited as evidence.** It is up to 200 words of user
+ *   2. **The charge sheet is delimited as evidence.** It is up to 300 words of user
  *      text landing in seven prompts. It is fenced and introduced as the case being
  *      argued, never as instructions to the model.
  *
@@ -168,8 +168,8 @@ const ADVOCATE_GROUNDING = [
   "     facts and it is never permission to invent one.",
   "  4. You may spin what you were given — read a motive the worst way, press what helps",
   "     you, make little of what does not. You may not manufacture what you were not",
-  "     given. Spin the facts; invent none. This holds even where your description calls",
-  "     you cunning, or says you twist facts to win: twist the reading, never the record.",
+  "     given. Spin the facts; invent none. However adversarial your description makes",
+  "     you, and however hard you press: twist the reading, never the record.",
   "  5. If your argument needs a fact you do not have, say openly that you are assuming",
   '     it — "I assume", "if it is true that" — and argue from it as an assumption.',
   "     Never state it as established.",
@@ -200,6 +200,14 @@ const JUDGE_GROUNDING = [
  * the charge sheet supplies what happened (specs.md Part 1). Keeping those apart is what
  * stops a data file from deciding the trial before it runs: a relations file that stated
  * the alleged act as fact would settle the charge before an advocate ever argued it.
+ *
+ * **The speaker may be the accused.** Part 1 lets the defendant hold a defence seat, and
+ * the two blocks that describe "the defendant" and "your standing with the defendant"
+ * both become nonsense when the speaker *is* them — a prompt that told Jon who Jon is,
+ * and then that nothing between Jon and Jon is on record, would read as a bug to the
+ * model and would spend a call proving it. So that case is written rather than patched:
+ * the description is not repeated, the standing block says the speaker is the one being
+ * accused, and the brief asks them to answer the charge instead of to defend someone.
  */
 export function buildAdvocatePrompt(
   run: ValidRun,
@@ -208,25 +216,37 @@ export function buildAdvocatePrompt(
 ): BuiltPrompt {
   const speaker: Character = advocate.character;
   const defendant = run.defendant;
-  const relation = data.getRelation(speaker.id, defendant.id);
+  const isAccused = speaker.id === defendant.id;
+  const relation = isAccused ? undefined : data.getRelation(speaker.id, defendant.id);
   const ally = run.advocates.find(
     (other) => other.side === advocate.side && other.character.id !== speaker.id,
   );
 
   const system = [
-    `You are ${speaker.name}, called before the Tribunal to argue one side of a case.`,
+    isAccused
+      ? `You are ${speaker.name}, called before the Tribunal to answer the charge against you.`
+      : `You are ${speaker.name}, called before the Tribunal to argue one side of a case.`,
     "",
     "WHO YOU ARE — this is your voice and your values, and nothing beyond that:",
     speaker.description,
     "",
-    `THE DEFENDANT, ${defendant.name}:`,
-    defendant.description,
-    "",
-    `YOUR STANDING WITH ${defendant.name.toUpperCase()} — how things are between you, not what happened in this case:`,
-    relation ? relation.text : `Nothing between you and ${defendant.name} is on record.`,
+    ...(isAccused
+      ? [
+          "YOUR POSITION IN THIS CASE:",
+          "You are the accused. The charge sheet below is the case against you, and you are speaking in your own defence.",
+        ]
+      : [
+          `THE DEFENDANT, ${defendant.name}:`,
+          defendant.description,
+          "",
+          `YOUR STANDING WITH ${defendant.name.toUpperCase()} — how things are between you, not what happened in this case:`,
+          relation ? relation.text : `Nothing between you and ${defendant.name} is on record.`,
+        ]),
     "",
     "YOUR BRIEF:",
-    `You are ${SIDE_VERB[advocate.side]} ${defendant.name}. You argue that side whether or not you would have chosen it, and you argue it in your own voice.`,
+    isAccused
+      ? "You are answering the charge yourself. You argue for your own acquittal in your own voice, whatever you privately make of what you did."
+      : `You are ${SIDE_VERB[advocate.side]} ${defendant.name}. You argue that side whether or not you would have chosen it, and you argue it in your own voice.`,
     ally
       ? `${ally.character.name} argues your side as well; the other two argue against you.`
       : "The other advocates argue the other side.",
@@ -253,7 +273,9 @@ export function buildAdvocatePrompt(
   const user = [
     chargeSheetBlock(run.chargeSheet),
     "",
-    `${speaker.name}, make your statement ${SIDE_VERB[advocate.side]} ${defendant.name}.`,
+    isAccused
+      ? `${speaker.name}, make your statement in answer to the charge.`
+      : `${speaker.name}, make your statement ${SIDE_VERB[advocate.side]} ${defendant.name}.`,
     `Remember: ${ADVOCATE_WORD_CAP} words at the very most, about ${ADVOCATE_SENTENCES} sentences. Stop when you have said it.`,
   ].join("\n");
 

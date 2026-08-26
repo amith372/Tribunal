@@ -17,7 +17,7 @@ import "./Setup.css";
  * Step 1: the charge sheet, the defendant, and the mode.
  *
  * Three things this screen is responsible for, all of them from specs.md Part 1:
- *   · the charge sheet is 10–200 words and must state a charge — shown live, because the
+ *   · the charge sheet is 10–300 words and must state a charge — shown live, because the
  *     alternative is a user pressing Run and being refused;
  *   · the defendant is one of the five characters in `data/`, chosen here and never typed;
  *   · the mode toggle chooses **a mode and nothing else** — there is no model input on
@@ -32,14 +32,34 @@ import "./Setup.css";
  * specs.md Part 4's validation case, the same text as the server's `PART_4_CHARGE_SHEET`.
  * It is duplicated rather than served because it is example *content*, not a rule: a copy
  * that drifts costs a demo its wording, not its correctness.
+ *
+ * It is the canonical charge sheet in full — the act alleged, the agreed factual record,
+ * and the question put to the tribunal — which is 243 of the 300 words allowed. The
+ * record is the part that earns the length: an advocate handed only the act would have to
+ * invent the circumstances around it, and inventing is the one thing an advocate may
+ * never do.
  */
 const EXAMPLE_CASE = {
   defendantId: "jon-snow",
   chargeSheet:
-    "Jon Snow is charged with regicide and treason: that he killed Queen Daenerys Targaryen " +
-    "in the throne room at King's Landing, by his own hand, after swearing her his loyalty. " +
-    "The tribunal must decide whether that killing was murder or the prevention of a greater " +
-    "slaughter.",
+    "Case T-001: The Realm v. Jon Snow. Accused: Jon Snow. Deceased: Daenerys Targaryen. " +
+    "The act alleged is that Jon Snow intentionally killed Daenerys Targaryen, stabbing her " +
+    "during a private meeting in the throne room after the fall of King's Landing. " +
+    "The agreed factual record: King's Landing had surrendered \u2014 its bells rang and " +
+    "organised resistance had ceased \u2014 and Daenerys then used Drogon against the streets " +
+    "and the civilians in them, causing destruction on a vast scale. After the victory she " +
+    "told her assembled forces that the campaign of liberation would continue beyond King's " +
+    "Landing; Jon had seen the city and heard the speech. Tyrion Lannister renounced his " +
+    "office as Hand and was imprisoned, having warned Jon that Daenerys would treat Jon's " +
+    "sisters, and anyone else she regarded as an obstacle, as enemies. Jon asked her to " +
+    "forgive Tyrion and to show mercy; she refused to let others choose what was good and " +
+    "presented her own judgement as decisive. Daenerys was unarmed and was not attacking Jon " +
+    "when he killed her. Jon used their intimacy to get close enough to strike, and he had " +
+    "not convened a council, attempted detention, or sought a public surrender of power. " +
+    "The question for judgment: was Jon Snow's intentional killing of Daenerys Targaryen " +
+    "justified as the necessary defence of others and of the realm, given what he knew, the " +
+    "scale of the threatened harm, the absence or presence of safer alternatives, and his " +
+    "lack of formal authority?",
 };
 
 export function Setup({

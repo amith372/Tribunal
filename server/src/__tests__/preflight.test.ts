@@ -64,14 +64,41 @@ describe("a passing run", () => {
   it("carries the cast as two defending and two prosecuting", () => {
     const forSide = result.run?.advocates.filter((advocate) => advocate.side === "for") ?? [];
     const againstSide = result.run?.advocates.filter((advocate) => advocate.side === "against") ?? [];
-    expect(forSide.map((advocate) => advocate.character.id)).toEqual(["tyrion", "cersei"]);
+    expect(forSide.map((advocate) => advocate.character.id)).toEqual(["jon-snow", "tyrion"]);
     expect(againstSide.map((advocate) => advocate.character.id)).toEqual(["daenerys", "grey-worm"]);
   });
 
-  it("never includes the defendant among the advocates", () => {
-    // Part 1 non-negotiable, restated as an assertion on the output rather than the input.
+  it("seats four of the five, leaving one character out of the case", () => {
+    // Four seats drawn from five, so a passing run always has exactly one character
+    // uncast. Cersei is the one who sits out Part 4's canonical casting.
     const ids = result.run?.advocates.map((advocate) => advocate.character.id) ?? [];
-    expect(ids).not.toContain(result.run?.defendant.id);
+    expect(ids).toHaveLength(4);
+    const uncast = data.characters.filter((character) => !ids.includes(character.id));
+    expect(uncast.map((character) => character.id)).toEqual(["cersei"]);
+  });
+
+  it("lets the accused hold a defence seat and never a prosecution one", () => {
+    // Part 1, restated as an assertion on the output rather than the input: the accused
+    // answering the charge is the canonical casting, so the check is not "absent" but
+    // "never on the side that accuses them".
+    const defendantId = result.run?.defendant.id;
+    const asAdvocate = result.run?.advocates.find(
+      (advocate) => advocate.character.id === defendantId,
+    );
+    expect(asAdvocate?.side).toBe("for");
+
+    const prosecuting = check({
+      chargeSheet: PART_4_CHARGE_SHEET,
+      defendant: "jon-snow",
+      advocates: [
+        { id: "tyrion", side: "for" },
+        { id: "cersei", side: "for" },
+        { id: "jon-snow", side: "against" },
+        { id: "grey-worm", side: "against" },
+      ],
+    });
+    expect(prosecuting.failures.map((failure) => failure.code)).toEqual(["defendant_prosecuting"]);
+    expect(prosecuting.run).toBeNull();
   });
 });
 
@@ -123,7 +150,7 @@ describe("the messages", () => {
 
     const long = check({
       ...validSetup(),
-      chargeSheet: `Jon Snow is charged with treason. ${"sworn ".repeat(200)}`,
+      chargeSheet: `Jon Snow is charged with treason. ${"sworn ".repeat(300)}`,
     }).failures[0]?.message ?? "";
     expect(long).toContain(`${MAX_CHARGE_SHEET_WORDS}`);
     expect(long).toContain("Cut 6");

@@ -80,7 +80,7 @@ function show(
 
 console.log("\nThe Tribunal — the seven prompts of a run, verbatim");
 console.log(
-  "specs.md Part 4's case: Jon Snow, regicide and treason. Tyrion and Cersei defending,",
+  "specs.md Part 4's case T-001: Jon Snow on trial. Jon himself and Tyrion defending,",
 );
 console.log("Daenerys and Grey Worm prosecuting. Built through the real pre-flight.\n");
 console.log("What to read for:");
@@ -94,10 +94,14 @@ console.log("\nNOTE: the four statements inside the judges' prompts are hand-wri
 console.log("No model was called to produce them. Only the prompts are under review here.\n");
 
 run.advocates.forEach((advocate, index) => {
+  // The accused defending themselves reads as "DEFENDING Jon Snow, Jon Snow" otherwise.
+  const isAccused = advocate.character.id === run.defendant.id;
   const side = advocate.side === "for" ? "DEFENDING" : "PROSECUTING";
   show(
     index + 1,
-    `ADVOCATE: ${advocate.character.name}, ${side} ${run.defendant.name}`,
+    isAccused
+      ? `ADVOCATE: ${advocate.character.name}, THE ACCUSED, ANSWERING THE CHARGE`
+      : `ADVOCATE: ${advocate.character.name}, ${side} ${run.defendant.name}`,
     buildAdvocatePrompt(run, advocate, data),
   );
 });
