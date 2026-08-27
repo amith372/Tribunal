@@ -29,7 +29,7 @@ it. `http://localhost:5173/api/health` should report five character names and th
 judge names read from `data/`.
 
 ```
-npm test              # Vitest, server-side
+npm test              # Vitest in both workspaces, server then web
 npm run lint          # ESLint, type-aware, whole repo
 npm run typecheck     # tsc across all four tsconfigs
 npm run rehearse      # a whole run streamed with the model call faked — costs no requests

@@ -236,11 +236,6 @@ export function countSide(draft: SetupDraft, side: Side): number {
   return Object.values(draft.sides).filter((value) => value === side).length;
 }
 
-/** How many of the castable characters are still in the middle. */
-export function uncastCount(draft: SetupDraft, castable: readonly Character[]): number {
-  return castable.filter((character) => !draft.sides[character.id]).length;
-}
-
 /**
  * Whether the casting is complete: exactly two defending and two prosecuting, drawn from
  * the roster, with the accused nowhere near the prosecution. One character is left in the

@@ -35,13 +35,19 @@ export interface PreflightRules {
   readonly chargeCues: readonly string[];
 }
 
+/**
+ * What `/api/health` sends, minus what no screen reads.
+ *
+ * The endpoint also reports `relations`, `apiKeyConfigured`, `runsHeld` and `coldModels`.
+ * They are deliberately absent here: a field nothing renders is a field that can change
+ * shape without any screen noticing, so the type states what is actually used and lets
+ * the rest arrive and be ignored. Same rule as the run types below.
+ */
 export interface Health {
   readonly ok: boolean;
   readonly characters: readonly Character[];
   readonly judges: readonly string[];
-  readonly relations: number;
   readonly preflight: PreflightRules;
-  readonly apiKeyConfigured: boolean;
 }
 
 export interface ModelsView {
