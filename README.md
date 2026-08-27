@@ -65,6 +65,68 @@ splits the bench, `-- fast` runs at four times the speed.
 Put them in a `.env` file at the repo root for local development. It is gitignored; the
 key never belongs in the repo.
 
+## Deployment
+
+Live at **https://tribunal-sflw.onrender.com** — a single Render free Web Service running one
+Express process that serves both the API and the built front end.
+
+| Setting | Value |
+|---|---|
+| Build command | `npm ci --include=dev && npm run build` |
+| Start command | `npm start` |
+| Health check path | `/api/health` |
+| Instance type | Free |
+
+`--include=dev` is not optional. Render sets `NODE_ENV=production`, and vite and `tsc` are
+devDependencies — a plain `npm ci` omits them and the build fails at the first compile.
+
+Three environment variables live on the host and nowhere else: `OPENROUTER_API_KEY`,
+`MONGODB_URI` and `MONGODB_DB`. `APP_URL` is optional and worth setting to the live URL, since
+it is the `HTTP-Referer` OpenRouter attributes the calls to; left unset it reports `localhost`.
+**Unset Mongo variables are not an error** — the app degrades to no archive and says so in its
+startup log — which means a deploy can look healthy while silently archiving nothing. The log
+line is the thing to check.
+
+Two pieces of setup are easy to miss because neither lives in this repo. **Atlas must allow
+`0.0.0.0/0`** in Network Access: Render's free tier has no static outbound IP, so there is no
+narrower rule to write, and the connection string's own credentials are what actually guard the
+database. And **Render's GitHub app needs access to this repository specifically** — a private
+repo is not visible to it by default.
+
+### Keeping it awake
+
+A free instance sleeps after **15 minutes** of inactivity and takes about a minute to wake, so a
+first-time visitor clicking a cold link waits through it. An external pinger on `/api/health`
+prevents that. The endpoint needs no API key by design, precisely so a pinger can use it.
+
+The interval must be under 15 minutes — 10 works, 45 does not, because a ping arriving at an
+already-sleeping instance keeps nothing warm and only pays the cold start again. The window is
+bounded rather than round-the-clock: Render's free allowance is 750 instance-hours a month and a
+31-day month is 744, so pinging continuously consumes essentially all of it.
+
+```
+*/10 7-21 * * *     Asia/Jerusalem
+```
+
+Ninety pings a day from 07:00 to 21:50, leaving the service awake until roughly 22:05 — about
+468 instance-hours a month, 62% of the allowance, with room to spare for a second free service.
+**Set the schedule's timezone explicitly.** In UTC those same hours land at 10:00–00:50 local,
+which is three hours wrong and looks exactly like working.
+
+Expect the first execution of each day to be recorded as a failure. That ping lands on a
+sleeping instance and the wake takes longer than the pinger's request timeout — the wake still
+succeeds, and the next ping ten minutes later is served warm. It is worth turning notifications
+off for that job rather than reading the same false alarm every morning.
+
+### There is no `render.yaml`
+
+The plan called for one and it was dropped deliberately. A `render.yaml` in the repo does nothing
+to a service that already exists — Render reads it only when creating a Blueprint — so it would
+document the deploy without defining it, and converting a running service to a Blueprint can
+produce a *new* service on a *new* URL. With a pinger and a shared link already pointing at the
+current one, that is a real risk bought for no benefit. This section is the record instead: it
+carries the same facts, and it is the one a person reads.
+
 **Only free models can ever be called.** The identifiers live in `server/src/config.ts`,
 the browser never receives an editable one and never sends one, and the OpenRouter
 client refuses anything not on the allowlist and not ending in `:free` before the
