@@ -1,5 +1,12 @@
 /**
- * What the verdict panels say about a run.
+ * What a finished run says about itself — the sentences the panels and the exported file
+ * are both rendered from.
+ *
+ * This was `web/src/results-model.test.ts`, testing the browser's mirror of `summary.ts`,
+ * with `summary-mirror.test.ts` beside it proving the mirror had not drifted. There is one
+ * copy now, so there is nothing left to hold against anything: these assertions run against
+ * the module the export and the panels both read, and agreement is structural rather than
+ * checked.
  *
  * These are not rendering tests. The five panels are mostly a re-arrangement of a record
  * the server already computed, and the part that can be *wrong* is the arrangement: which
@@ -14,15 +21,17 @@
 
 import { describe, expect, it } from "vitest";
 
+import { CATALOGUE } from "./record-cases.js";
+
+import type { RunOutcome } from "../aggregate.js";
+import type { Verdict } from "../judge-parser.js";
+import type { Side } from "../preflight.js";
 import type {
-  Attempt,
-  JudgeView,
-  RunOutcome,
+  AttemptView as Attempt,
+  JudgeOutcomeView as JudgeView,
   RunRecordView,
-  Side,
-  StatementView,
-  Verdict,
-} from "./api.js";
+  StatementOutcomeView as StatementView,
+} from "../record-view.js";
 import {
   bySide,
   closingLines,
@@ -31,10 +40,9 @@ import {
   rolesAnswered,
   runSubtitle,
   stages,
-  stepPanel,
   summaryRows,
   usageOf,
-} from "./results-model.js";
+} from "../summary.js";
 
 /* ---- fixtures --------------------------------------------------------------------------- */
 
@@ -86,6 +94,9 @@ function statement(id: string, name: string, side: Side, ok = true): StatementVi
     model: ok ? ADVOCATE_MODEL : null,
     error: ok ? null : "The call failed.",
     errorKind: ok ? null : "server_error",
+    // Absent from the browser's hand-written copy of this type, which is precisely the
+    // drift a hand-copied shape invites: it compiled for months while the server had it.
+    problem: null,
     rescreened: false,
     attempts: [attempt(`advocate:${id}`, ok ? {} : { ok: false, errorKind: "server_error" })],
   };
@@ -106,7 +117,7 @@ function judge(id: string, name: string, verdict: Verdict | null): JudgeView {
     model: verdict === null ? null : JUDGE_MODEL,
     ok: verdict !== null,
     error: verdict === null ? "Nothing readable came back." : null,
-    errorKind: verdict === null ? "unparsable" : null,
+    errorKind: verdict === null ? "bad_response" : null,
     attempts: [attempt(`judge:${id}`, verdict === null ? { ok: false } : {})],
   };
 }
@@ -177,13 +188,6 @@ describe("the five panels", () => {
       "spend",
       "closing",
     ]);
-  });
-
-  it("clamps rather than wrapping, so neither end runs round to the other", () => {
-    expect(stepPanel(0, -1)).toBe(0);
-    expect(stepPanel(0, 1)).toBe(1);
-    expect(stepPanel(4, 1)).toBe(4);
-    expect(stepPanel(2, -1)).toBe(1);
   });
 });
 
@@ -427,5 +431,55 @@ describe("the masthead line", () => {
 
   it("says so when one model served every seat", () => {
     expect(runSubtitle(record({ mode: "solo" }))).toContain("one model for all seven roles");
+  });
+});
+
+/* ---- every shape a record can take ---------------------------------------------------------- */
+
+/**
+ * The eleven record shapes `record-cases.ts` collects — a split bench, a unanimous one, a
+ * silent seat, a hung bench, a lone surviving verdict, an advocate who never spoke, a trial
+ * abandoned before the bench sat, a solo-mode run, two judges on one maker.
+ *
+ * **These shapes used to be run through here by `summary-mirror.test.ts`, which asserted
+ * only that the browser's copy and the server's said the same thing.** Two copies agreeing
+ * is not two copies being right: the mirror would have passed just as happily on two
+ * identically wrong sentences. There is one copy now, so the question that is left is the
+ * one worth asking — does it produce a usable sentence for every shape a run can end in?
+ */
+describe.each(CATALOGUE)("the sentences hold for $name", ({ record }) => {
+  it("heads the run with a finding and a reason for it", () => {
+    const head = headline(record);
+    expect(head.title.length).toBeGreaterThan(0);
+    expect(head.detail.length).toBeGreaterThan(0);
+    expect(["guilty", "acquitted", "unresolved"]).toContain(head.tone);
+  });
+
+  it("names the defendant and the date in the subtitle", () => {
+    const subtitle = runSubtitle(record);
+    expect(subtitle).toContain(record.defendant.name);
+    expect(subtitle).toContain("defendant");
+  });
+
+  it("keeps every advocate on exactly one side", () => {
+    const { defense, prosecution } = bySide(record.statements);
+    expect(defense.length + prosecution.length).toBe(record.statements.length);
+  });
+
+  it("rolls every attempt into a stage, and loses none of them", () => {
+    const counted = stages(record).reduce((total, stage) => total + stage.attempts.length, 0);
+    expect(counted).toBe(record.attempts.length);
+  });
+
+  it("closes with prose rather than an empty section", () => {
+    for (const line of Object.values(closingLines(record))) {
+      if (typeof line === "string") expect(line.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("counts no more roles answered than were seated", () => {
+    const { answered, of } = rolesAnswered(record);
+    expect(answered).toBeLessThanOrEqual(of);
+    expect(of).toBe(record.statements.length + record.judges.length);
   });
 });

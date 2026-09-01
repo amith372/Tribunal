@@ -18,7 +18,7 @@ import type {
 import { type RunSession, type RunSnapshot } from "../run-session.js";
 // Tokens and time for one role, summed across its attempts — the same reading the results
 // panels use, kept in one place so a card and a panel cannot disagree about a role's cost.
-import { usageOf } from "../results-model.js";
+import { NO_ANSWER, usageOf } from "@record/summary.js";
 import "./Run.css";
 
 /**
@@ -427,9 +427,7 @@ function AdvocateCard({
 
       {phase === "failed" && (
         <p className="run-card-error">
-          {statement?.error ??
-            "No statement came back for this advocate, and none was written for it. The " +
-              "trial is recorded as incomplete rather than as one that happened to be quiet."}
+          {NO_ANSWER}
         </p>
       )}
 
@@ -468,7 +466,6 @@ function CardMeta({
       <>
         {statement?.requestedModel ?? row.requestedModel ?? "—"} ·{" "}
         {tried === 1 ? "1 attempt" : `${tried} attempts`}
-        {statement?.errorKind ? ` · ${statement.errorKind.replace(/_/g, " ")}` : ""}
       </>
     );
   }
@@ -567,7 +564,7 @@ function JudgeSeat({
           <>
             <div className="run-seat-status is-failed">No readable verdict</div>
             <div className="mono run-seat-meta">
-              {judge?.error ?? "This seat returned nothing a verdict could be read from."}
+              {NO_ANSWER}
             </div>
           </>
         )}

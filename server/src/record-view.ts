@@ -15,11 +15,11 @@ import type { Attempt } from "./openrouter.js";
 import type { JudgeOutcome } from "./judging.js";
 import type { StatementOutcome } from "./statements.js";
 
-type AttemptView = Omit<Attempt, "raw" | "httpStatus" | "finishReason">;
-type StatementOutcomeView = Omit<StatementOutcome, "attempts"> & {
+export type AttemptView = Omit<Attempt, "raw" | "httpStatus" | "finishReason">;
+export type StatementOutcomeView = Omit<StatementOutcome, "attempts"> & {
   readonly attempts: readonly AttemptView[];
 };
-type JudgeOutcomeView = Omit<JudgeOutcome, "attempts" | "rawText" | "route" | "problem" | "retryReason"> & {
+export type JudgeOutcomeView = Omit<JudgeOutcome, "attempts" | "rawText" | "route" | "problem" | "retryReason"> & {
   readonly attempts: readonly AttemptView[];
 };
 export type RunRecordView = Omit<RunRecord, "statements" | "judges" | "attempts"> & {

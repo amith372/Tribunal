@@ -26,9 +26,7 @@
  * the run did not actually reach.
  */
 
-import type { RunRecord } from "./aggregate.js";
-import type { Attempt } from "./openrouter.js";
-import type { JudgeOutcome } from "./judging.js";
+import type { AttemptView, JudgeOutcomeView, RunRecordView } from "./record-view.js";
 import type { Verdict } from "./judge-parser.js";
 import type { Side } from "./preflight.js";
 
@@ -72,13 +70,35 @@ export const seconds = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
  * the developer's laptop and on the host, and a local-time format would quietly make three
  * different files. It also means the screen and the file never disagree about the date.
  */
-export function runSubtitle(record: RunRecord): string {
+export function runSubtitle(record: RunRecordView): string {
   const at = new Date(record.startedAt);
   const when = Number.isNaN(at.getTime())
     ? record.startedAt
     : `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
   return `${record.defendant.name}, defendant · ${when} · ${MODE_LABEL[record.mode] ?? record.mode}`;
 }
+
+/* ---- a role that never answered ------------------------------------------------------------ */
+
+/**
+ * What a seat says when its chain is spent, on screen and in the exported file alike.
+ *
+ * specs.md Part 5: the card states the outcome and points at the summary, because what the
+ * provider actually returned — a status code, its name for its own shared pool, an error
+ * kind with underscores in it — is written for whoever runs the server. On an advocate's
+ * card it reads as a fault in this app rather than as a model declining to answer.
+ *
+ * **This hides nothing.** `stages()` still lists every attempt with its model, its error
+ * kind and its elapsed time; the export still carries the raw body; the run is still
+ * counted incomplete and the role is still a gap. Only the *place* a reader meets the
+ * detail has changed.
+ *
+ * It is one sentence for both kinds of seat on purpose. An advocate that did not speak and
+ * a judge that did not rule are the same event to a reader — a seat that was asked and did
+ * not answer — and giving them two wordings would imply a distinction the record does not
+ * make.
+ */
+export const NO_ANSWER = "Failed to give an answer (see summary at the end for more details).";
 
 /* ---- the five sections, and the words that head them ------------------------------------- */
 
@@ -136,7 +156,12 @@ export interface Headline {
  * a run that never reached one, because three of the four cases have no verdict field at
  * all to print from.
  */
-export function headline(record: RunRecord): Headline {
+/*
+ * Takes only the outcome, because that is all it reads. The archive screen holds a
+ * summary rather than a whole record and still has to head it the same way — asking for
+ * the whole record would force a caller to invent the rest of one to print two words.
+ */
+export function headline(record: Pick<RunRecordView, "outcome">): Headline {
   const outcome = record.outcome;
   switch (outcome.kind) {
     case "verdict":
@@ -179,7 +204,7 @@ export function bySide<T extends { readonly side: Side }>(
  * `tokens` is `null` where no attempt reported usage at all. A zero there would read as
  * "this was free", which is a different claim from "the model did not say".
  */
-export function usageOf(attempts: readonly Attempt[]): {
+export function usageOf(attempts: readonly AttemptView[]): {
   tokens: number | null;
   elapsedMs: number;
 } {
@@ -195,7 +220,7 @@ export function usageOf(attempts: readonly Attempt[]): {
 export interface StageRollup {
   readonly stage: "advocate" | "judge";
   readonly caption: string;
-  readonly attempts: readonly Attempt[];
+  readonly attempts: readonly AttemptView[];
   readonly promptTokens: number;
   readonly completionTokens: number;
   readonly reasoningTokens: number;
@@ -217,7 +242,7 @@ export interface StageRollup {
  * string the per-call table prints, so a row cannot land under a heading that disagrees
  * with its own name.
  */
-export function stages(record: RunRecord): readonly StageRollup[] {
+export function stages(record: RunRecordView): readonly StageRollup[] {
   const groups: { stage: "advocate" | "judge"; caption: string }[] = [
     { stage: "advocate", caption: "The advocates — asked together" },
     { stage: "judge", caption: "The bench — asked together, after the statements" },
@@ -226,7 +251,7 @@ export function stages(record: RunRecord): readonly StageRollup[] {
   return groups
     .map(({ stage, caption }) => {
       const attempts = record.attempts.filter((attempt) => attempt.label.startsWith(`${stage}:`));
-      const sum = (read: (attempt: Attempt) => number | null): number =>
+      const sum = (read: (attempt: AttemptView) => number | null): number =>
         attempts.reduce((total, attempt) => total + (read(attempt) ?? 0), 0);
       return {
         stage,
@@ -257,7 +282,7 @@ const names = (rows: readonly { readonly name: string }[]): string =>
   rows.length === 0 ? "—" : rows.map((row) => row.name).join(" · ");
 
 /** The eight facts of the run, at a glance. */
-export function summaryRows(record: RunRecord): readonly SummaryRow[] {
+export function summaryRows(record: RunRecordView): readonly SummaryRow[] {
   const { defense, prosecution } = bySide(record.casting);
   const head = headline(record);
   const totals = record.totals;
@@ -299,7 +324,7 @@ const countWord = (n: number): string => COUNT_WORD[n] ?? String(n);
  * app does not summarise a judge's reasoning; the reasoning is printed in full a section
  * earlier, and paraphrasing it here would be the app writing part of the record.
  */
-export function closingLines(record: RunRecord): {
+export function closingLines(record: RunRecordView): {
   readonly lead: string;
   readonly note: string;
 } {
@@ -348,14 +373,14 @@ export function closingLines(record: RunRecord): {
 }
 
 /** Who, if anyone, went the other way — named, never characterised. */
-function dissentNote(record: RunRecord): string {
+function dissentNote(record: RunRecordView): string {
   const outcome = record.outcome;
   if (outcome.kind !== "verdict") return "";
 
   const dissenting = record.judges.filter(
-    (judge: JudgeOutcome) => judge.verdict !== null && judge.verdict !== outcome.verdict,
+    (judge: JudgeOutcomeView) => judge.verdict !== null && judge.verdict !== outcome.verdict,
   );
-  const silent = record.judges.filter((judge: JudgeOutcome) => judge.verdict === null);
+  const silent = record.judges.filter((judge: JudgeOutcomeView) => judge.verdict === null);
 
   const parts: string[] = [];
   if (dissenting.length === 0) {
@@ -388,7 +413,7 @@ function dissentNote(record: RunRecord): string {
 const cap = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
 
 /** The count of roles that reported, out of the seven a run makes. */
-export function rolesAnswered(record: RunRecord): { answered: number; of: number } {
+export function rolesAnswered(record: RunRecordView): { answered: number; of: number } {
   const statements = record.statements.filter((statement) => statement.ok).length;
   const judges = record.judges.filter((judge) => judge.verdict !== null).length;
   return { answered: statements + judges, of: record.statements.length + record.judges.length };

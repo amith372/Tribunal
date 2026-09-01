@@ -37,6 +37,10 @@
 
 import type { RunRecord } from "./aggregate.js";
 import type { Attempt } from "./openrouter.js";
+// The call table renders only what the browser is also shown, so it is typed against the
+// view rather than the full attempt. `rawBlock` below still takes the whole thing — the
+// raw body is exactly what the appendix exists to print.
+import type { AttemptView } from "./record-view.js";
 import type { JudgeOutcome } from "./judging.js";
 import type { StatementOutcome } from "./statements.js";
 import type { StageRollup } from "./summary.js";
@@ -55,6 +59,7 @@ import {
   sideTone,
   stages,
   summaryRows,
+  NO_ANSWER,
   usageOf,
   VERDICT_LABEL,
 } from "./summary.js";
@@ -94,7 +99,7 @@ function statementBlock(statement: StatementOutcome): string {
     return `<article class="card missing side-${tone}">
       <h3 class="display">${escapeHtml(statement.name)}</h3>
       <p class="plaque ${tone}">${plaque}</p>
-      <p class="absent">No statement was delivered. ${escapeHtml(statement.error ?? "The call failed.")}</p>
+      <p class="absent">${escapeHtml(NO_ANSWER)}</p>
     </article>`;
   }
   // The word cap is soft (specs.md Part 2): a reply that ran over is reported here exactly
@@ -119,7 +124,7 @@ function judgeBlock(judge: JudgeOutcome): string {
   if (judge.verdict === null) {
     return `<article class="card missing">
       <h3 class="display">${escapeHtml(judge.name)}</h3>
-      <p class="absent">No verdict. ${escapeHtml(judge.error ?? "The reply could not be read.")}</p>
+      <p class="absent">${escapeHtml(NO_ANSWER)}</p>
       <p class="meta">${escapeHtml(judge.model ?? "—")}</p>
     </article>`;
   }
@@ -150,7 +155,7 @@ function seatChip(judge: JudgeOutcome): string {
   return `<div class="seat"><div class="seat-name">${escapeHtml(judge.name)}</div>${verdict}</div>`;
 }
 
-function attemptRow(attempt: Attempt): string {
+function attemptRow(attempt: AttemptView): string {
   const usage = attempt.usage;
   return `<tr class="${attempt.ok ? "" : "failed"}">
     <td>${escapeHtml(attempt.label)}</td>

@@ -7,7 +7,7 @@ import { Masthead } from "../components/Masthead.js";
 import { Panel } from "../components/Panel.js";
 import { getArchivedRun, listArchive, type ArchiveSummary, type RunRecordView } from "../api.js";
 import { archivedRunIds, forgetArchivedRuns, missingArchiveIds } from "../run-memory.js";
-import { headline, number, price } from "../results-model.js";
+import { headline, number, price } from "@record/summary.js";
 import { ResultsPanels } from "./Results.js";
 import "./Archive.css";
 

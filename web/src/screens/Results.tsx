@@ -25,12 +25,13 @@ import {
   SIDE_LABEL,
   sideTone,
   stages,
-  stepPanel,
   summaryRows,
   usageOf,
   VERDICT_LABEL,
   closingLines,
-} from "../results-model.js";
+  NO_ANSWER,
+} from "@record/summary.js";
+import { stepPanel } from "../panel-nav.js";
 import "./Results.css";
 
 /**
@@ -363,9 +364,7 @@ function JudgeCard({
             <p className="results-reasoning">{judge.reasoning}</p>
           ) : (
             <p className="results-reasoning is-absent">
-              {judge.error ??
-                "This seat returned nothing a verdict could be read from. No verdict was " +
-                  "written for it."}
+              {NO_ANSWER}
             </p>
           )}
           <div className="mono results-meta">
@@ -435,9 +434,7 @@ function StatementCard({ statement }: { statement: StatementView }) {
         <p className="results-speech">{statement.text}</p>
       ) : (
         <p className="results-speech is-absent">
-          {statement.error ??
-            "No statement came back for this advocate, and none was written for it. The trial " +
-              "is recorded as incomplete rather than as one that happened to be quiet."}
+          {NO_ANSWER}
         </p>
       )}
 

@@ -11,7 +11,10 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    // Matches the alias in vite.config.ts. The browser reads the server's copy of what a
+    // run says rather than keeping a mirror of its own — see that file for why it is safe.
+    "paths": { "@record/*": ["../server/src/*"] }
   },
-  "include": ["src"]
+  "include": ["src", "vite.config.ts"]
 }

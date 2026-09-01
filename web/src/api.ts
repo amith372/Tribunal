@@ -12,7 +12,8 @@
  * request, not here.
  */
 
-export type Side = "for" | "against";
+import type { Side } from "@record/preflight.js";
+export type { Side };
 
 export interface Character {
   readonly id: string;
@@ -119,121 +120,30 @@ export interface PreflightFailure {
   readonly message: string;
 }
 
-export interface Usage {
-  readonly promptTokens: number | null;
-  readonly completionTokens: number | null;
-  readonly reasoningTokens: number | null;
-  readonly totalTokens: number | null;
-  readonly costUsd: number | null;
-}
-
-/** One request. A retry or a fallback is its own attempt, and its own row in the table. */
-export interface Attempt {
-  readonly label: string;
-  readonly attempt: number;
-  readonly isRetry: boolean;
-  readonly requestedModel: string;
-  /** The identifier that answered. Differs when the fallback router resolved. */
-  readonly respondedModel: string | null;
-  readonly ok: boolean;
-  readonly errorKind: string | null;
-  readonly errorMessage: string | null;
-  readonly usage: Usage;
-  readonly elapsedMs: number;
-}
-
-/** One advocate, settled. `ok: false` is a real gap in the run, never a silent absence. */
-export interface StatementView {
-  readonly advocateId: string;
-  readonly name: string;
-  readonly side: Side;
-  readonly ok: boolean;
-  readonly text: string | null;
-  readonly words: number | null;
-  readonly wordCap: number;
-  /** Measured against the cap the prompt asked for. A soft cap: shown, never enforced. */
-  readonly overCap: boolean;
-  readonly requestedModel: string;
-  readonly model: string | null;
-  readonly error: string | null;
-  readonly errorKind: string | null;
-  /** True when a refused first reply bought one more call. */
-  readonly rescreened: boolean;
-  readonly attempts: readonly Attempt[];
-}
-
-export type Verdict = "guilty" | "not_guilty";
-
-/** One seat on the bench, settled. `verdict: null` is never filled in by anything. */
-export interface JudgeView {
-  readonly judgeId: string;
-  readonly name: string;
-  readonly verdict: Verdict | null;
-  readonly reasoning: string;
-  readonly reasoningWords: number;
-  readonly wordCap: number;
-  readonly overCap: boolean;
-  readonly reasonCount: number;
-  /** Fewer than two distinct reasons — reported, never a rejection (Part 2). */
-  readonly thinReasoning: boolean;
-  readonly requestedModel: string;
-  readonly model: string | null;
-  readonly ok: boolean;
-  readonly error: string | null;
-  readonly errorKind: string | null;
-  readonly attempts: readonly Attempt[];
-}
-
-export interface Tally {
-  readonly guilty: number;
-  readonly notGuilty: number;
-  readonly failed: number;
-}
-
 /**
- * How a run ended. `verdict` carries one; the other three have no such field at all, so
- * a screen cannot print a verdict that was never reached (specs.md Part 3).
+ * The record's vocabulary, read from the server rather than restated here.
+ *
+ * Every one of these was written out by hand for as long as the browser kept its own copy
+ * of what a run says. It does not any more — `vite.config.ts` explains why that is safe —
+ * and a hand-copied type was exactly the drift that copy risked: a field that changed shape
+ * on the server would have gone on compiling here, and the screen would have read a record
+ * that no longer existed.
+ *
+ * Every line below is a type-only re-export, erased at build. The browser gains the
+ * server's vocabulary and none of its code: no model identifier, no key, no Node.
  */
-export type RunOutcome =
-  | { readonly kind: "verdict"; readonly verdict: Verdict; readonly tally: Tally }
-  | { readonly kind: "hung"; readonly tally: Tally }
-  | { readonly kind: "inconclusive"; readonly tally: Tally; readonly why: string }
-  | { readonly kind: "aborted"; readonly reason: string; readonly message: string };
+export type {
+  AttemptView as Attempt,
+  JudgeOutcomeView as JudgeView,
+  StatementOutcomeView as StatementView,
+} from "@record/record-view.js";
+export type { Usage } from "@record/openrouter.js";
+export type { Verdict } from "@record/judge-parser.js";
 
-export interface RunTotals {
-  readonly calls: number;
-  readonly promptTokens: number;
-  readonly completionTokens: number;
-  readonly reasoningTokens: number;
-  readonly totalTokens: number;
-  readonly costUsd: number;
-  readonly elapsedMs: number;
-  /** True if any attempt reported no usage, so a total can be shown as a floor. */
-  readonly usageMissing: boolean;
-}
-
-/** The finished run: one record, and everything downstream renders it (Part 3). */
-export interface RunRecordView {
-  readonly chargeSheet: string;
-  readonly chargeSheetWords: number;
-  readonly defendant: { readonly id: string; readonly name: string };
-  readonly casting: readonly { readonly id: string; readonly name: string; readonly side: Side }[];
-  readonly mode: Mode;
-  readonly statements: readonly StatementView[];
-  readonly judges: readonly JudgeView[];
-  readonly outcome: RunOutcome;
-  readonly tally: Tally;
-  readonly attempts: readonly Attempt[];
-  readonly totals: RunTotals;
-  readonly complete: boolean;
-  readonly collisions: readonly { readonly model: string; readonly roles: readonly string[] }[];
-  readonly benchLineage: readonly {
-    readonly maker: string;
-    readonly judges: readonly string[];
-  }[];
-  readonly startedAt: string;
-  readonly finishedAt: string;
-}
+// Imported as well as re-exported: the shapes below are declared in terms of them.
+import type { RunOutcome, RunTotals, Tally } from "@record/aggregate.js";
+import type { RunRecordView } from "@record/record-view.js";
+export type { RunOutcome, RunRecordView, RunTotals, Tally };
 
 /**
  * The first event of a run: the casting and the bench, sent before a single model has been

@@ -16,7 +16,13 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    // The same alias `web/vite.config.ts` and `web/tsconfig.json` carry. This config's
+    // `rootDir` is the repo root because `preflight-mirror.test.ts` reads the browser's
+    // copy of the pre-flight rules — and that file now reaches back here through
+    // `@record`, so this program has to resolve it too. Never reached by the emit:
+    // `tsconfig.build.json` excludes the tests that pull `web/` in at all.
+    "paths": { "@record/*": ["./src/*"] }
   },
   "include": ["src/**/*.ts"]
 }

@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { aggregate, type RunRecord } from "../aggregate.js";
 import { buildExportHtml, escapeHtml } from "../export.js";
+import { NO_ANSWER } from "../summary.js";
 import { resolveRunModels } from "../config.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
@@ -204,7 +205,15 @@ describe("an incomplete run is recorded as incomplete", () => {
 
     expect(run.complete).toBe(false);
     expect(html).toContain("incomplete trial");
-    expect(html).toContain("No statement was delivered");
+
+    // The card says the one sentence (specs.md Part 5) rather than the provider's own
+    // words for its failure.
+    expect(html).toContain(NO_ANSWER);
+
+    // **And the detail is still in the document.** Moving where a reader meets it is the
+    // whole change; losing it would not be. The call table still carries the failed
+    // attempt, its error kind and the model that refused.
+    expect(html).toContain("server_error");
   });
 
   it("says the bench was short, and prints no verdict where none was reached", async () => {
