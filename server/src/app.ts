@@ -52,6 +52,7 @@ import {
   SEARCHED_NAMES,
 } from "./preflight.js";
 import { toRunRecordView } from "./record-view.js";
+import { securityHeaders } from "./security-headers.js";
 import { executeRun, type RunEmit } from "./run.js";
 import type { RunEvent } from "./run-buffer.js";
 import { RunBuffer } from "./run-buffer.js";
@@ -103,6 +104,9 @@ export function createApp(options: AppOptions): Express {
   const buffer = options.buffer ?? new RunBuffer();
   const archive = options.archive ?? null;
   const app = express();
+  // Before every route and before the static files, so the policy covers the app itself
+  // and not only the API under it.
+  app.use(securityHeaders);
   app.use(express.json({ limit: "64kb" }));
 
   /**
@@ -258,10 +262,15 @@ export function createApp(options: AppOptions): Express {
       })
       .catch((error: unknown) => {
         // Only a fault in the app itself reaches here — everything a model did is an
-        // outcome the record already carries honestly.
-        const message = (error as Error).message;
-        console.error(`Run ${runId} failed: ${message}`);
-        emit("error", { message });
+        // outcome the record already carries honestly. Which is exactly why the message
+        // is not forwarded: a fault in *this* process is described in this process's own
+        // terms, and those terms are for the log, not for a reader watching a trial.
+        console.error(`Run ${runId} failed: ${(error as Error).message}`);
+        emit("error", {
+          message:
+            "The tribunal stopped on a fault in the app itself, not in the case or in any " +
+            "model. Nothing further was spent. The run cannot be completed.",
+        });
       });
   });
 
@@ -339,7 +348,7 @@ export function createApp(options: AppOptions): Express {
           sendExport(res, found.record);
         })
         .catch((error: unknown) => {
-          res.status(500).json({ ok: false, error: (error as Error).message });
+          archiveFailed(res, "export rebuild (live)", error);
         });
       return;
     }
@@ -373,7 +382,7 @@ export function createApp(options: AppOptions): Express {
       .list(ids)
       .then((runs) => res.json({ ok: true, runs }))
       .catch((error: unknown) => {
-        res.status(500).json({ ok: false, error: (error as Error).message });
+        archiveFailed(res, "list", error);
       });
   });
 
@@ -398,7 +407,7 @@ export function createApp(options: AppOptions): Express {
         res.json({ ok: true, runId: found.runId, record: toRunRecordView(found.record) });
       })
       .catch((error: unknown) => {
-        res.status(500).json({ ok: false, error: (error as Error).message });
+        archiveFailed(res, "read", error);
       });
   });
 
@@ -419,7 +428,7 @@ export function createApp(options: AppOptions): Express {
         sendExport(res, found.record);
       })
       .catch((error: unknown) => {
-        res.status(500).json({ ok: false, error: (error as Error).message });
+        archiveFailed(res, "export rebuild (archived)", error);
       });
   });
 
@@ -444,6 +453,30 @@ export function createApp(options: AppOptions): Express {
 function forWire(event: RunEvent): RunEvent {
   if (event.event !== "done") return event;
   return { ...event, data: toRunRecordView(event.data as RunRecord) };
+}
+
+/**
+ * A failure inside the archive, reported without handing the reader the inside of it.
+ *
+ * These call sites used to return `(error as Error).message` straight to the browser. A
+ * driver error is written for whoever runs the server, not for whoever uses it: the MongoDB
+ * client puts the cluster host — and on some failures the credentialed URI — into the text,
+ * so the message that told a developer what broke was also the one that published the
+ * connection string to anyone able to make the call fail.
+ *
+ * The detail therefore goes to the log, where the operator is, and the reader is given a
+ * sentence that says what happened and what it means for them. **The run itself is never
+ * what failed here** — it finished, it was archived or it was not, and saying so is the
+ * part that matters to someone holding an id.
+ */
+function archiveFailed(res: Response, doing: string, error: unknown): void {
+  console.error(`Archive ${doing} failed: ${(error as Error).message}`);
+  res.status(500).json({
+    ok: false,
+    error:
+      "The archive could not be reached, so this run could not be read back. The run itself " +
+      "is unaffected and nothing was spent — try again in a moment.",
+  });
 }
 
 /**
