@@ -24,6 +24,7 @@
  */
 
 import { fallbackChainFor, type Mode } from "./casting.js";
+import { releaseWave } from "./dispatch.js";
 import { warmFirst } from "./model-health.js";
 import type { TribunalData } from "./data.js";
 import {
@@ -113,6 +114,14 @@ export interface StatementsOptions {
   /** One model per advocate, in casting order, from `resolveRunModels`. */
   readonly models: readonly string[];
   readonly call?: ChatCaller;
+  /**
+   * Milliseconds between releasing one call in this wave and the next.
+   *
+   * Defaults to `WAVE_STAGGER_MS`. A test that measures whether the wave is *parallel* sets
+   * it to 0, because pacing and parallelism are different properties and a test for one
+   * should not be able to fail on the other — `dispatch.test.ts` covers the pacing.
+   */
+  readonly staggerMs?: number;
   /** Fired as each advocate settles, so the SSE stream can send them one at a time. */
   readonly onStatement?: (statement: StatementOutcome) => void;
 }
@@ -136,8 +145,10 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
   const { run, data, mode, models } = options;
   const call = options.call ?? callChat;
 
-  const statements = await Promise.all(
-    run.advocates.map(async (advocate, index) => {
+  // Released a stagger apart rather than all at once (see `dispatch.ts` for the measured
+  // reason and for why it is an experiment rather than a fix). They still overlap.
+  const statements = await releaseWave(
+    run.advocates.map((advocate, index) => async () => {
       const requestedModel = models[index];
       const prompt = buildAdvocatePrompt(run, advocate, data);
 
@@ -237,6 +248,7 @@ export async function runStatements(options: StatementsOptions): Promise<Stateme
       options.onStatement?.(outcome);
       return outcome;
     }),
+    options.staggerMs,
   );
 
   const delivered = statements.filter((statement) => statement.ok);

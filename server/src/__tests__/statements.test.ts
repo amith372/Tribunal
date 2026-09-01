@@ -86,7 +86,7 @@ describe("a wave where all four advocates answer", () => {
       return fakeResult(options, "a statement");
     };
 
-    await runStatements({ run, data, mode: "per-role", models, call });
+    await runStatements({ run, data, mode: "per-role", models, call, staggerMs: 0,});
     expect(peak).toBe(4);
   });
 

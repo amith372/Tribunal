@@ -30,6 +30,7 @@
  */
 
 import { fallbackChainFor, type Mode } from "./casting.js";
+import { releaseWave } from "./dispatch.js";
 import type { TribunalData } from "./data.js";
 import {
   OpenRouterError,
@@ -86,6 +87,14 @@ export interface JudgingResult {
 }
 
 export interface JudgingOptions {
+  /**
+   * Milliseconds between releasing one call in this wave and the next.
+   *
+   * Defaults to `WAVE_STAGGER_MS`. A test that measures whether the wave is *parallel* sets
+   * it to 0, because pacing and parallelism are different properties and a test for one
+   * should not be able to fail on the other — `dispatch.test.ts` covers the pacing.
+   */
+  readonly staggerMs?: number;
   readonly run: ValidRun;
   readonly data: TribunalData;
   readonly mode: Mode;
@@ -106,8 +115,10 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
   const { run, data, mode, models, statements } = options;
   const call = options.call ?? callChat;
 
-  const judges = await Promise.all(
-    data.judges.map(async (judge, index) => {
+  // The bench is released a stagger apart too, and is the wave that needs it more: it is
+  // rate-limited more often than the advocates despite being smaller (`dispatch.ts`).
+  const judges = await releaseWave(
+    data.judges.map((judge, index) => async () => {
       const requestedModel = models[index];
       const prompt = buildJudgePrompt(run, judge, statements);
       const chain = fallbackChainFor(requestedModel, mode, "judge", models);
@@ -185,6 +196,7 @@ export async function runJudging(options: JudgingOptions): Promise<JudgingResult
       options.onVerdict?.(outcome);
       return outcome;
     }),
+    options.staggerMs,
   );
 
   return { judges, attempts: judges.flatMap((judge) => judge.attempts) };

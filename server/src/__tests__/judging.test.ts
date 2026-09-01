@@ -95,7 +95,7 @@ describe("a bench where every judge answers in the form asked for", () => {
       return result;
     };
 
-    await runJudging({ run, data, mode: "per-role", models, statements, call: counting });
+    await runJudging({ run, data, mode: "per-role", models, statements, call: counting, staggerMs: 0,});
     expect(peak).toBe(3);
   });
 

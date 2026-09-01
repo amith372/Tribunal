@@ -81,6 +81,8 @@ export interface ExecuteRunOptions {
   readonly emit: RunEmit;
   /** The seam the tests replace. Defaults to the real OpenRouter client. */
   readonly call?: ChatCaller;
+  /** Milliseconds between releasing calls within a wave. See `dispatch.ts`. */
+  readonly staggerMs?: number;
   readonly timeoutMs?: number;
   readonly now?: () => Date;
 }
@@ -273,6 +275,7 @@ export async function executeRun(options: ExecuteRunOptions): Promise<RunRecord>
       seenStatements.push(statement);
       emit("statement", statement);
     },
+    ...(options.staggerMs !== undefined ? { staggerMs: options.staggerMs } : {}),
   });
 
   const waveResult = await beforeDeadline(statementsWave, msLeft());
@@ -312,6 +315,7 @@ export async function executeRun(options: ExecuteRunOptions): Promise<RunRecord>
       seenJudges.push(judge);
       emit("judge", judge);
     },
+    ...(options.staggerMs !== undefined ? { staggerMs: options.staggerMs } : {}),
   });
 
   const benchResult = await beforeDeadline(judgingWave, msLeft());

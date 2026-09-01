@@ -177,7 +177,7 @@ describe("the whole-run deadline", () => {
     });
     const { events, emit } = recorder();
 
-    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 40 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, staggerMs: 0, timeoutMs: 40 });
 
     expect(record.outcome.kind).toBe("aborted");
     if (record.outcome.kind === "aborted") expect(record.outcome.reason).toBe("run_timeout");
@@ -194,7 +194,7 @@ describe("the whole-run deadline", () => {
     };
     const { emit } = recorder();
 
-    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 60 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, staggerMs: 0, timeoutMs: 60 });
 
     // Casting order, all four present — a gap is written in, never left out.
     expect(record.statements).toHaveLength(4);
@@ -213,7 +213,7 @@ describe("the whole-run deadline", () => {
     };
     const { emit } = recorder();
 
-    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 120 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, staggerMs: 0, timeoutMs: 120 });
 
     expect(record.judges).toHaveLength(3);
     expect(record.tally.guilty).toBe(2);
@@ -230,7 +230,7 @@ describe("the whole-run deadline", () => {
       return fakeResult(options, "A statement about the case that was made.");
     };
 
-    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 40 });
+    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, staggerMs: 0, timeoutMs: 40 });
     const afterDone = events.length;
     await sleep(200);
 
