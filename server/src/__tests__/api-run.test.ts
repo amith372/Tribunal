@@ -223,9 +223,17 @@ describe("a run the pre-flight passes", () => {
   });
 
   it("arrives one event at a time rather than as one lump at the end", async () => {
-    // 40ms per call: the advocate wave is parallel so it costs ~40ms, the bench another
-    // ~40ms. If the response were buffered, every frame would carry the same arrival time.
-    const { url, stop } = await serve({ call: pacedCaller(40).call });
+    // 100ms per call: the advocate wave is parallel so it costs ~100ms, the bench another
+    // ~100ms. If the response were buffered, every frame would carry the same arrival time.
+    //
+    // **The delay is generous on purpose, and the threshold below is not.** At 40ms this
+    // assertion sat 10ms from its own limit, and a loaded machine sampling a few
+    // milliseconds late failed a run that had streamed perfectly well — observed at 26ms
+    // against a floor of 30. The property under test is that frames arrive *apart* rather
+    // than together, and a buffered response would put them microseconds apart, so the
+    // floor was never the interesting number. Raising the delay rather than lowering the
+    // floor keeps the assertion exactly as strict and moves the flake out of reach.
+    const { url, stop } = await serve({ call: pacedCaller(100).call });
     const frames = await runToCompletion(url);
 
     const preflightAt = frames[0]?.atMs;
