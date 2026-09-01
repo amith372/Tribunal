@@ -14,7 +14,7 @@
  * a model that answered every request with 403.
  *
  * **Discovery narrows and never widens.** It can only ever hand back identifiers that pass
- * `isFreeModelId`, it is reachable by no user, no request field, no flag and no environment
+ * `isFreeModelId` *and* are priced at zero by OpenRouter's own listing, it is reachable by no user, no request field, no flag and no environment
  * variable, and nothing it returns can put a paid model in a seat. That is what keeps it on
  * the right side of specs.md Part 5's cost hole: what is forbidden there is a *user*-
  * reachable mechanism, not a change of roster.
@@ -34,9 +34,37 @@ import { isFreeModelId } from "./config.js";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/models";
 
-/** Only the field this module reads; the payload carries a great deal more. */
+/** Only the fields this module reads; the payload carries a great deal more. */
 interface ModelsResponse {
-  readonly data?: readonly { readonly id?: string }[];
+  readonly data?: readonly {
+    readonly id?: string;
+    readonly pricing?: Readonly<Record<string, unknown>>;
+  }[];
+}
+
+/**
+ * Whether OpenRouter prices every part of this model at exactly zero.
+ *
+ * **The `:free` suffix is a name, and a name is not a price.** `isFreeModelId` reads the
+ * identifier, which is a convention OpenRouter happens to follow — it is not a promise, and
+ * nothing stops a listing from carrying a `:free` id beside a non-zero rate. specs.md Part 1
+ * asks for both checks and says neither alone is sufficient; this is the half that reads the
+ * number rather than the name.
+ *
+ * **A model whose price cannot be confirmed is not free.** No pricing block, an empty one,
+ * or any value that is not exactly zero — including a negative, which means "not applicable"
+ * rather than "no charge" — keeps the model out. The failure direction is deliberate: an
+ * over-strict filter costs a model that could have been used and is visible immediately in
+ * `models:check`, while an over-lax one spends real money on somebody's key.
+ */
+function isZeroPriced(pricing: Readonly<Record<string, unknown>> | undefined): boolean {
+  if (!pricing || typeof pricing !== "object") return false;
+  const rates = Object.values(pricing);
+  if (rates.length === 0) return false;
+  return rates.every((rate) => {
+    const value = Number(rate);
+    return Number.isFinite(value) && value === 0;
+  });
 }
 
 export interface Roster {
@@ -111,7 +139,13 @@ export async function discoverRoster(options: DiscoverOptions = {}): Promise<Ros
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = (await response.json()) as ModelsResponse;
 
-    const models = [...new Set((body.data ?? []).map((entry) => entry.id))]
+    // Both checks, and in this order: the name has to say free *and* every rate has to be
+    // zero. specs.md Part 1 — neither alone is sufficient.
+    const models = [...new Set(
+      (body.data ?? [])
+        .filter((entry) => isZeroPriced(entry.pricing))
+        .map((entry) => entry.id),
+    )]
       .filter((id): id is string => typeof id === "string" && isFreeModelId(id))
       .sort();
 

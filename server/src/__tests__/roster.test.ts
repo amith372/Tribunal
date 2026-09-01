@@ -14,14 +14,27 @@ import { describe, expect, it, vi } from "vitest";
 
 import { discoverRoster, RosterUnavailableError, type Roster } from "../roster.js";
 
-/** A fetch that answers with a model list, shaped as OpenRouter's endpoint shapes it. */
+/**
+ * A fetch that answers with a model list, shaped as OpenRouter's endpoint shapes it.
+ *
+ * Entries are priced at zero unless a test says otherwise, because that is what the real
+ * listing carries for every model whose id ends in `:free` — checked against the live
+ * endpoint on 2026-09-01, where the only pricing keys present were `prompt` and
+ * `completion` and every value was the string "0".
+ */
 function listing(ids: readonly (string | undefined)[], ok = true, status = 200) {
   return () =>
     Promise.resolve({
       ok,
       status,
-      json: () => Promise.resolve({ data: ids.map((id) => ({ id })) }),
+      json: () =>
+        Promise.resolve({ data: ids.map((id) => ({ id, pricing: { prompt: "0", completion: "0" } })) }),
     } as Response);
+}
+
+/** A listing whose entries carry whatever pricing a test hands them. */
+function priced(entries: readonly { id: string; pricing?: Record<string, string> }[]) {
+  return () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: entries }) } as Response);
 }
 
 /** A cache that lives in this test and nowhere on disk. */
@@ -74,6 +87,41 @@ describe("what discovery accepts", () => {
       cache: memoryCache(),
     });
     expect(roster.models).toEqual(["alpha/one:free", "beta/two:free"]);
+  });
+
+  /**
+   * **The name is not the price.** `:free` is a convention OpenRouter happens to follow, not
+   * a promise it has made, and the whole point of checking both is that a listing could
+   * carry the suffix beside a real rate. A run must cost nothing, so a fraction of a cent is
+   * as disqualifying as a dollar.
+   */
+  it("refuses a model named free that is not priced at zero", async () => {
+    const roster = await discoverRoster({
+      fetchModels: priced([
+        { id: "alpha/honest:free", pricing: { prompt: "0", completion: "0" } },
+        { id: "beta/liar:free", pricing: { prompt: "0", completion: "0.00000001" } },
+      ]),
+      cache: memoryCache(),
+    });
+    expect(roster.models).toEqual(["alpha/honest:free"]);
+  });
+
+  /**
+   * A price that cannot be read is not a price of zero. Rejecting is the safe direction: it
+   * costs a model that might have been usable, and `models:check` shows that immediately,
+   * where the other way round spends money on somebody's key.
+   */
+  it("refuses a model whose price it cannot confirm", async () => {
+    const roster = await discoverRoster({
+      fetchModels: priced([
+        { id: "alpha/priced:free", pricing: { prompt: "0", completion: "0" } },
+        { id: "beta/no-pricing-block:free" },
+        { id: "gamma/empty-pricing:free", pricing: {} },
+        { id: "delta/not-applicable:free", pricing: { prompt: "0", completion: "-1" } },
+      ]),
+      cache: memoryCache(),
+    });
+    expect(roster.models).toEqual(["alpha/priced:free"]);
   });
 
   it("caches what it found, so the next failure has something to fall back to", async () => {
