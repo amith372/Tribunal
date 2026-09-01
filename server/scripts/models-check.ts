@@ -1,81 +1,88 @@
 /**
- * models-check.ts — is every pinned identifier still live and still free?
+ * models-check.ts — what the app would cast a run from, right now.
  *
- * specs.md Part 5: the free roster rotates, sometimes weekly, so the pinned
- * identifiers are re-checked before a demo. A check that depends on remembering to
- * look is not a check, so this is one command:
+ * **This used to be a maintenance chore and is now a window.** Its old job was to name
+ * which pinned identifiers had been delisted and which environment variable would replace
+ * each one, because the roster was written out in `config.ts` and rotted there. specs.md
+ * Part 1 no longer permits a hard-coded roster: the app asks OpenRouter at startup, so
+ * there is nothing left to go stale and nothing to hand-edit.
+ *
+ * What is worth looking at instead is the *decision* — which free models arrived, which of
+ * them this app refuses to seat and why, and how the survivors were dealt between the bench
+ * and the advocates. That is what this prints:
  *
  *   npm run models:check
  *
- * It prints each pinned identifier as live or GONE beside the environment variable
- * that overrides it, then every free identifier OpenRouter is currently offering — so
- * a delisting and its replacement are visible in the same output. Fixing one is a
- * configuration change on the host, never a code change.
- *
- * Deliberately a script and never an endpoint. A way to change models at runtime is
- * the cost hole Part 5 forbids.
+ * Still deliberately a script and never an endpoint: discovery narrows the pool and can
+ * only ever produce free models, but a way for a *user* to change models at runtime is the
+ * cost hole specs.md Part 5 forbids.
  *
  * Needs no API key: the model list is public.
  */
 
-import { FALLBACK_ROUTER, getModelRegistry, isFreeModelId } from "../src/config.js";
+import {
+  EXCLUDED_MODELS,
+  FALLBACK_ROUTER,
+  JUDGE_INELIGIBLE,
+  getModelRegistry,
+  setRoster,
+} from "../src/config.js";
+import { discoverRoster } from "../src/roster.js";
 
-const ENDPOINT = "https://openrouter.ai/api/v1/models";
-
-/** Only the two fields this script reads; the payload carries far more. */
-interface ModelsResponse {
-  readonly data?: readonly { readonly id?: string }[];
-}
-
-/** Which env var overrides each slot, so a GONE line says what to set. */
-const SLOT_ENV: readonly (readonly [string, string])[] = (() => {
-  const { solo, judgePool, advocatePool } = getModelRegistry();
-  return [
-    [solo, "TRIBUNAL_MODEL_SOLO"],
-    ...judgePool.map((id, i) => [id, `TRIBUNAL_MODEL_JUDGE_${i + 1}`] as const),
-    ...advocatePool.map((id, i) => [id, `TRIBUNAL_MODEL_ADVOCATE_${i + 1}`] as const),
-  ];
-})();
+const RULE = "─".repeat(78);
 
 async function main(): Promise<void> {
-  let live: Set<string>;
+  const roster = await discoverRoster();
+
+  console.log(`\n${RULE}`);
+  console.log(
+    `OpenRouter — ${roster.models.length} free models ` +
+      (roster.cached ? `(from the cache written ${roster.fetchedAt})` : "(fetched just now)"),
+  );
+  console.log(RULE);
+  for (const id of roster.models) {
+    const why = EXCLUDED_MODELS.get(id) ?? JUDGE_INELIGIBLE.get(id);
+    const mark = EXCLUDED_MODELS.has(id) ? "refused " : JUDGE_INELIGIBLE.has(id) ? "advocate" : "        ";
+    console.log(`  ${mark}  ${id}${why ? `\n              ${why}` : ""}`);
+  }
+
+  setRoster(roster.models);
+
+  let registry;
   try {
-    const response = await fetch(ENDPOINT, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = (await response.json()) as ModelsResponse;
-    live = new Set((body.data ?? []).map((m) => m.id).filter((id): id is string => !!id));
+    registry = getModelRegistry();
   } catch (error) {
-    console.error(`Could not reach ${ENDPOINT}: ${(error as Error).message}`);
+    console.error(`\n${(error as Error).message}\n`);
     process.exitCode = 1;
     return;
   }
 
-  console.log(`\nOpenRouter roster checked ${new Date().toISOString().slice(0, 10)} — ${live.size} models listed.\n`);
+  const { solo, judgePool, advocatePool, allowlist } = registry;
 
-  const width = Math.max(...SLOT_ENV.map(([id]) => id.length));
-  const missing: string[] = [];
+  console.log(`\n${RULE}`);
+  console.log(`The bench draws from ${judgePool.length} models, for 3 seats`);
+  console.log(RULE);
+  for (const id of judgePool) console.log(`  ${id}`);
 
-  // The router is the last entry of every fallback chain, so its absence is the one
-  // that would quietly remove the degradation guarantee rather than one role.
-  const rows: (readonly [string, string])[] = [...SLOT_ENV, [FALLBACK_ROUTER, "— fallback router"]];
+  console.log(`\n${RULE}`);
+  console.log(`The advocates draw from ${advocatePool.length} models, for 4 seats`);
+  console.log(RULE);
+  for (const id of advocatePool) console.log(`  ${id}`);
 
-  for (const [id, env] of rows) {
-    const ok = live.has(id);
-    if (!ok) missing.push(`${id}  →  set ${env}`);
-    console.log(`  ${ok ? "live" : "GONE"}  ${id.padEnd(width)}  ${env}`);
-  }
+  console.log(`\n  solo mode:       ${solo}`);
+  console.log(`  fallback router: ${FALLBACK_ROUTER}`);
+  console.log(`  allowlist:       ${allowlist.size} identifiers, and nothing else may be called.`);
 
-  const free = [...live].filter(isFreeModelId).sort();
-  console.log(`\nFree identifiers currently on offer (${free.length}):`);
-  for (const id of free) console.log(`  ${id}`);
-
-  if (missing.length > 0) {
-    console.log(`\n${missing.length} pinned identifier(s) no longer listed. Replace from the list above:`);
-    for (const line of missing) console.log(`  ${line}`);
+  // The pools share no model, which is what keeps "no two roles share one" true before
+  // `fallbackChainFor` is consulted at all (specs.md Part 1). Cheap to assert, and the kind
+  // of thing that would otherwise be noticed only in a run.
+  const overlap = judgePool.filter((id) => advocatePool.includes(id));
+  if (overlap.length > 0) {
+    console.error(`\n  ✗ the pools share ${overlap.length} model(s): ${overlap.join(", ")}\n`);
     process.exitCode = 1;
     return;
   }
-  console.log("\nAll pinned identifiers are live and free.\n");
+  console.log("\n  ✓ the two pools share no model.\n");
 }
 
-void main();
+await main();

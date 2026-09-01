@@ -39,125 +39,6 @@
 export const FALLBACK_ROUTER = "openrouter/free";
 
 /**
- * Roster verified live and $0 on OpenRouter on 2026-08-22 (`npm run models:check`).
- *
- * **Fifteen models for seven seats: every usable free identifier the roster offers.**
- * The pools are as deep as they can be made, because depth is what a second attempt
- * spends. A run reaches for a spare whenever a pinned model is rate-limited or delisted,
- * and on 2026-08-22 that was four of the seven seats in a single run — so the question is
- * not whether the spares get used but whether there are enough of them that each failing
- * role gets its own, rather than several roles colliding on the same one or dropping
- * through to the router.
- *
- * The history is worth keeping, because two separate bugs hid this for a day. The pools
- * were widened on 2026-08-21 after five trials in which every failure went straight to
- * `openrouter/free`, and the router resolved a vision model and a code model into seats
- * writing courtroom statements. That widening then did nothing at all: `buildRegistry`
- * iterated `ENV_KEYS` rather than these lists and truncated both pools back to exactly the
- * seat count, and `resolveRunModels` handed `fallbackChainFor` the whole pool as
- * "already in use", which emptied every chain of spares. The live run of 2026-08-22 —
- * a content-safety classifier on the bench, two pairs of roles sharing a model — is what
- * finally surfaced both.
- *
- * Deliberately excluded although free and live, because a model being free is not a
- * reason to hand it a role: `cohere/north-mini-code` (a code model — 46s, then
- * `bad_response`), `nvidia/nemotron-nano-12b-v2-vl` (vision — poor prose, and a grounding
- * leak), `nvidia/nemotron-3.5-content-safety` (a classifier — it took a judge's seat off
- * the router on 2026-08-22 and returned no readable verdict at all).
- *
- * **Excluded although the roster lists them as free, because they cannot be called at all:**
- * `thinkingmachines/inkling` and `thinkingmachines/inkling-small`. Both answer every request
- * with HTTP 403, "only available on agentic harnesses", and they cost a judge and an
- * advocate their seats on 2026-08-22 before that was known. `models:check` reads the public
- * model list and cannot see this — being listed and being callable are different things, and
- * only a real request tells them apart. That is what a vetting run is for.
- *
- * The two pools are disjoint by model, which is what keeps "no two roles share a model"
- * true before `fallbackChainFor` is even consulted.
- */
-const DEFAULTS = {
-  solo: "nvidia/nemotron-3-ultra-550b-a55b:free",
-  /**
-   * Six models for three seats, across five makers — **and the bench gets the depth,
-   * because writing a statement and returning a verdict are not the same job.**
-   *
-   * `dots-3-note-preview` was moved here on 2026-08-22 to give the judges a spare, and moved
-   * straight back out the same day: it had written two good statements as an advocate and
-   * then returned empty content on both of its attempts at a verdict. A model that can write
-   * cannot be assumed to rule. `nemotron-3-nano-omni-30b-a3b-reasoning` replaces it — a
-   * reasoning model, which is what a judge's work actually is, and one that had already
-   * written a clean 89-word statement, so it is depth rather than a guess.
-   *
-   * The bench is the side that gets the benefit of any doubt about depth. A judge with no
-   * vetted spare falls to the router, which on 2026-08-22 resolved a content-safety
-   * classifier into a seat that returned no verdict at all — and a lost judge can turn a
-   * decided case into a hung one. An advocate in the same position is far better defended:
-   * `statement-check.ts` reads whatever comes back and refuses it if it is not a statement,
-   * buying another call on a different model. The bench has no equivalent.
-   *
-   * The bench is where Part 1's lineage rule is a non-negotiable — two judges built from
-   * shared weights can agree for reasons that are not judicial, and a majority of three
-   * lets such a pair decide the verdict. So the makers here are what is capped, not the
-   * models: five is every distinct maker the free roster offers that is not already
-   * spending its one usable model on the advocates. `fallbackChainFor` enforces the rule
-   * at failover too, refusing a spare whose maker is already seated, which is what makes
-   * the sixth entry safe to add rather than a way around the rule.
-   *
-   * Three spares for three judges, handed out rotated, so a simultaneous failure gives
-   * each judge a different one instead of all three reaching for the same model.
-   */
-  judges: [
-    "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "google/gemma-4-31b-it:free",
-    "z-ai/glm-5.2:free",
-    "poolside/laguna-xs-2.1:free",
-    // A second NVIDIA, which `fallbackChainFor` will only ever offer to a bench that has
-    // no NVIDIA model seated — depth that cannot cost the lineage rule anything.
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    // A reasoning model, which is what a judge's work actually is. It took an advocate
-    // seat on 2026-08-22 and wrote a clean 89-word statement, so it is not a guess.
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-  ],
-  /**
-   * Seven models for four seats, across six makers. Advocates do not vote, so several
-   * models from one maker in the *pool* costs nothing — `pickSeats` fills the four seats
-   * maker-first, so the four voices are always drawn from four makers however the shuffle
-   * falls, and the rest sit as spares.
-   *
-   * Six makers for four seats also restores real run-to-run variety in *which* makers are
-   * heard, not merely which model each maker sends.
-   *
-   * `openai/gpt-oss-20b` was here until 2026-08-22, when `models:check` reported it
-   * delisted — it had been spending one guaranteed 404 per run and dropping whichever
-   * advocate drew it onto the router. `poolside/laguna-s-2.1` replaces it.
-   */
-  advocates: [
-    "poolside/laguna-s-2.1:free",
-    "google/gemma-4-26b-a4b-it:free",
-    // Back from the bench, where it returned empty content twice. It writes statements
-    // well and cannot produce a verdict; those are different jobs.
-    "dots-studio/dots-3-note-preview:free",
-    // Replaces `nvidia/nemotron-3-nano-30b-a3b`, delisted by 2026-08-26. Vetted with a
-    // single request the same day before being seated: 5.0s, `stop`, 64 words of usable
-    // advocate prose, usage returned, $0. It holds a seat rather than a spare because it
-    // is the one of the two replacements that has actually been heard from.
-    "minimax/minimax-m3:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    // Replaces `nvidia/nemotron-nano-9b-v2`, delisted by 2026-08-26. **The one entry here
-    // that has not been watched writing anything**: its vetting request on 2026-08-26 came
-    // back rate-limited upstream (GMICloud shared pool), which is a transient refusal and
-    // not inkling's flat 403 — so it is unproven rather than known bad, and there was no
-    // third candidate to prefer over it. The free roster offered exactly two unused
-    // identifiers that day and `EXCLUDED_MODELS` already names every other one. It sits in
-    // the last spare slot deliberately: nothing reaches it until a seat has already failed
-    // over, and if it fails too the chain falls through to the router as it would anyway.
-    // Promote it once a real run has been seen to use it.
-    "minimax/minimax-m2.7:free",
-  ],
-};
-
-/**
  * Models this app has measured and will not seat, **as data rather than as a comment.**
  *
  * The standing rule for the pools above is that a spare is never a guess — every entry in
@@ -184,40 +65,6 @@ export const EXCLUDED_MODELS: ReadonlyMap<string, string> = new Map([
   ["thinkingmachines/inkling-small:free", "gated to agentic harnesses — answers every request with 403"],
 ]);
 
-/**
- * Env vars that may swap a delisted identifier without a code change (specs.md Part 5).
- *
- * **There is one key per pool slot, spares included, and `DEFAULTS` is what decides how
- * many slots there are.** This list used to be the shorter of the two and `buildRegistry`
- * iterated *it*, which silently truncated both pools back to the number of seats: the
- * vetted spares added to `DEFAULTS` were never read, so the pools were never actually
- * widened and every chain stayed one model deep. Part 5 asks that a delisted identifier
- * be replaceable through configuration, and a spare is exactly as likely to be delisted
- * as a first choice, so each gets its own key.
- */
-const ENV_KEYS = {
-  solo: "TRIBUNAL_MODEL_SOLO",
-  judges: [
-    "TRIBUNAL_MODEL_JUDGE_1",
-    "TRIBUNAL_MODEL_JUDGE_2",
-    "TRIBUNAL_MODEL_JUDGE_3",
-    "TRIBUNAL_MODEL_JUDGE_4",
-    "TRIBUNAL_MODEL_JUDGE_5",
-    "TRIBUNAL_MODEL_JUDGE_6",
-  ],
-  advocates: [
-    "TRIBUNAL_MODEL_ADVOCATE_1",
-    "TRIBUNAL_MODEL_ADVOCATE_2",
-    "TRIBUNAL_MODEL_ADVOCATE_3",
-    "TRIBUNAL_MODEL_ADVOCATE_4",
-    "TRIBUNAL_MODEL_ADVOCATE_5",
-    "TRIBUNAL_MODEL_ADVOCATE_6",
-    "TRIBUNAL_MODEL_ADVOCATE_7",
-    "TRIBUNAL_MODEL_ADVOCATE_8",
-    "TRIBUNAL_MODEL_ADVOCATE_9",
-  ],
-};
-
 export class ModelPolicyError extends Error {
   constructor(message: string) {
     super(message);
@@ -234,19 +81,6 @@ export function isFreeModelId(id: string): boolean {
 }
 
 /** Reads one slot from env, falling back to the pinned default. A paid override throws. */
-function resolveSlot(envKey: string | undefined, fallback: string): string {
-  const raw = envKey ? process.env[envKey]?.trim() : undefined;
-  if (!raw) return fallback;
-  if (!isFreeModelId(raw)) {
-    throw new ModelPolicyError(
-      `${envKey} is set to "${raw}", which is not a free model. Only identifiers ` +
-        `ending in ":free" (or "${FALLBACK_ROUTER}") are permitted. There is no ` +
-        `setting that allows a paid model.`,
-    );
-  }
-  return raw;
-}
-
 export interface ModelRegistry {
   /** One model for all seven roles, in solo mode. */
   readonly solo: string;
@@ -258,15 +92,149 @@ export interface ModelRegistry {
   readonly allowlist: ReadonlySet<string>;
 }
 
-function buildRegistry(): ModelRegistry {
-  // Driven by DEFAULTS, which is the authority on how many models each pool holds.
-  // Iterating ENV_KEYS instead is what silently discarded the spares.
-  const solo = resolveSlot(ENV_KEYS.solo, DEFAULTS.solo);
-  const judgePool = DEFAULTS.judges.map((id, i) => resolveSlot(ENV_KEYS.judges[i], id));
-  const advocatePool = DEFAULTS.advocates.map((id, i) => resolveSlot(ENV_KEYS.advocates[i], id));
+/**
+ * Models that may argue but must not judge. **Per-role eligibility, and it is not a
+ * hypothesis.**
+ *
+ * `dots-3-note-preview` wrote two clean statements as an advocate on 2026-08-22 and then
+ * returned empty content on both of its attempts at a verdict. It was moved off the bench
+ * by hand, with the conclusion written beside it: a model that can write cannot be assumed
+ * to rule. specs.md Part 1 now states that as a rule rather than a note — eligibility is
+ * per role — and this is where the evidence for it lives.
+ *
+ * The bench is the side that gets the benefit of any doubt, because a lost judge can turn a
+ * decided case into a hung one, while a refused statement is caught by
+ * `statement-check.ts` and buys another call.
+ */
+export const JUDGE_INELIGIBLE: ReadonlyMap<string, string> = new Map([
+  ["dots-studio/dots-3-note-preview:free", "writes well and returned empty content on both attempts at a verdict"],
+]);
 
-  // Composed from the validated identifiers above — never widened, and never read
-  // from the environment as a list of its own.
+/** How many models each pool needs before a run can be cast at all. */
+const MIN_JUDGE_POOL = 3;
+const MIN_ADVOCATE_POOL = 4;
+
+/**
+ * The discovered roster, set once at startup by `index.ts`.
+ *
+ * **Held rather than fetched here on purpose.** Discovery is asynchronous and everything
+ * downstream of the registry is not: `assertAllowedModel` is called on the hot path of
+ * every request. Making the registry async would push a promise through the whole pipeline
+ * to answer a question that has one answer for the life of the process.
+ */
+let roster: readonly string[] | null = null;
+
+/**
+ * Hands the process its roster. Every identifier is checked again on the way in — the
+ * source has already filtered, and this file does not take that on trust, because it is the
+ * one place the free rule is allowed to be believed.
+ */
+export function setRoster(models: readonly string[]): void {
+  const bad = models.find((id) => !isFreeModelId(id));
+  if (bad !== undefined) {
+    throw new ModelPolicyError(
+      `The roster carried "${bad}", which is not a free model. Only identifiers ending ` +
+        `in ":free" (or "${FALLBACK_ROUTER}") may enter the pool.`,
+    );
+  }
+  roster = [...models];
+  registry = null;
+}
+
+/** Test seam, and what `index.ts` reports when discovery has not happened. */
+export function hasRoster(): boolean {
+  return roster !== null;
+}
+
+/**
+ * Splits the eligible models into two disjoint pools, maker by maker.
+ *
+ * specs.md Part 1: the pools share no model, which is what keeps "no two roles share one"
+ * true before `fallbackChainFor` is consulted at all. Walking makers in turn and dealing
+ * alternately gives both pools makers rather than giving one pool all of a maker — the
+ * bench's lineage rule needs distinct makers available to it, and a split that handed every
+ * NVIDIA model to the advocates would starve it.
+ *
+ * The bench deals first because it is the side that cannot recover from a thin pool.
+ */
+function splitPools(eligible: readonly string[]): { judges: string[]; advocates: string[] } {
+  const byMaker = new Map<string, string[]>();
+  for (const id of eligible) {
+    const maker = id.split("/")[0] ?? id;
+    const models = byMaker.get(maker) ?? [];
+    models.push(id);
+    byMaker.set(maker, models);
+  }
+
+  const judges: string[] = [];
+  const advocates: string[] = [];
+
+  /**
+   * **Each maker's models are dealt between the pools, rather than each maker being dealt
+   * to a pool.** Dealing whole makers was tried first and is quietly wrong: with six makers
+   * it gave each pool three, so the bench had exactly three lineages for three seats and no
+   * distinct-maker spare to fall to — which is the position `fallbackChainFor` exists to
+   * avoid, and the one that put a classifier in a judge's seat.
+   *
+   * Splitting within a maker gives both pools the full spread of makers while keeping them
+   * disjoint by model, which is what specs.md Part 1 asks of them.
+   */
+  [...byMaker.values()].forEach((models, index) => {
+    // The starting side alternates by maker, so a roster of single-model makers does not
+    // hand every one of them to the bench.
+    let toBench = index % 2 === 0;
+    for (const id of models) {
+      (toBench ? judges : advocates).push(id);
+      toBench = !toBench;
+    }
+  });
+
+  return { judges, advocates };
+}
+
+function buildRegistry(): ModelRegistry {
+  if (roster === null) {
+    throw new ModelPolicyError(
+      "No model roster has been discovered, so no model may be seated. " +
+        "The app asks OpenRouter which models are currently free at startup.",
+    );
+  }
+
+  // Eligibility, applied after membership: the free rule again, then what this app has
+  // measured and will not seat. Presence on the roster is necessary and never sufficient.
+  /**
+   * **The router is never a seat.** `openrouter/free` passes the free rule and appears on
+   * the roster like anything else, but it resolves to whatever OpenRouter picks — which is
+   * why `fallbackChainFor` puts it *last* in every chain and `openrouter.ts` checks the
+   * model that answered against the exclusions. Letting it into a pool would let a judge be
+   * cast straight onto a lottery, before any failure had happened at all, which is the
+   * position all of that machinery exists to avoid. It stays on the allowlist, because a
+   * chain still has to be allowed to reach it.
+   */
+  const eligible = roster.filter(
+    (id) => isFreeModelId(id) && id !== FALLBACK_ROUTER && !EXCLUDED_MODELS.has(id),
+  );
+  const { judges, advocates } = splitPools(eligible);
+
+  // The bench keeps only models eligible to judge; anything moved off it is still a
+  // perfectly good advocate, so it is handed over rather than discarded.
+  const judgePool = judges.filter((id) => !JUDGE_INELIGIBLE.has(id));
+  const advocatePool = [...advocates, ...judges.filter((id) => JUDGE_INELIGIBLE.has(id))];
+
+  if (judgePool.length < MIN_JUDGE_POOL || advocatePool.length < MIN_ADVOCATE_POOL) {
+    throw new ModelPolicyError(
+      `The roster yielded ${judgePool.length} models able to judge and ${advocatePool.length} ` +
+        `able to argue; a run needs at least ${MIN_JUDGE_POOL} and ${MIN_ADVOCATE_POOL}. ` +
+        "No run can be cast. Nothing was spent.",
+    );
+  }
+
+  const solo = judgePool[0];
+
+  // Composed from exactly the identifiers validated above — never widened, and never read
+  // from the environment as a list of its own. The router is the one addition, and it is
+  // guarded separately: `openrouter.ts` checks the model that *answered* against
+  // `EXCLUDED_MODELS`, because only the reply names what the router resolved.
   const allowlist = new Set<string>([solo, ...judgePool, ...advocatePool, FALLBACK_ROUTER]);
 
   return { solo, judgePool, advocatePool, allowlist };
@@ -274,13 +242,13 @@ function buildRegistry(): ModelRegistry {
 
 let registry: ModelRegistry | null = null;
 
-/** The model registry, built once from code defaults plus validated env overrides. */
+/** The registry, composed once from the discovered roster and this app's own rules. */
 export function getModelRegistry(): ModelRegistry {
   registry ??= buildRegistry();
   return registry;
 }
 
-/** Test seam: forget the cached registry so a test can vary the environment. */
+/** Test seam: forget the composed registry so a test can vary the roster. */
 export function resetModelRegistry(): void {
   registry = null;
 }

@@ -30,7 +30,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FALLBACK_ROUTER, getModelRegistry, getServerConfig } from "./config.js";
+import { FALLBACK_ROUTER, getModelRegistry, getServerConfig, hasRoster } from "./config.js";
 import { ADVOCATE_SEATS, JUDGE_SEATS, type Mode } from "./casting.js";
 import type { RunRecord } from "./aggregate.js";
 import { type RunArchive } from "./archive.js";
@@ -203,6 +203,26 @@ export function createApp(options: AppOptions): Express {
     );
     if (!check.ok) {
       res.status(400).json({ ok: false, failures: check.failures });
+      return;
+    }
+
+    /**
+     * No roster, no run. specs.md Part 1: with no list from OpenRouter and none cached, the
+     * app refuses and says so, because the alternative — seating models nothing has vetted
+     * — produces a record that looks legitimate and is not.
+     *
+     * Reported like the missing key below rather than as a fault in the case: the user's
+     * charge sheet is fine, and nothing has been spent.
+     */
+    if (!hasRoster()) {
+      res.status(503).json({
+        ok: false,
+        failures: [],
+        error:
+          "This server has no model roster: OpenRouter could not be reached and nothing was " +
+          "cached, so there are no models available to try the case. Your case is fine — " +
+          "nothing was sent and nothing was spent.",
+      });
       return;
     }
 

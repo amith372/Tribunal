@@ -18,3 +18,8 @@ tribunal_plan.md
 # not a real run) and by `npm run export:log` (a real one, re-rendered from runs.jsonl).
 # The export is the run record and belongs to whoever ran it, not to the repository.
 /tribunal-*.html
+
+# The last model roster that arrived from OpenRouter, kept so a momentary outage does not
+# stop a run. It is a cache of a fact about a Tuesday, never a source of truth — the app
+# re-fetches at every startup and only reads this when that fails.
+server/.roster-cache.json

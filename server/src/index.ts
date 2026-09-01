@@ -9,9 +9,10 @@
 import "./env.js";
 import { archiveFromEnv } from "./archive.js";
 import { createApp } from "./app.js";
-import { getServerConfig } from "./config.js";
+import { getServerConfig, setRoster } from "./config.js";
 import { DataError, loadData, type TribunalData } from "./data.js";
 import { RUN_TIMEOUT_MS } from "./run.js";
+import { discoverRoster, RosterUnavailableError, type Roster } from "./roster.js";
 
 /**
  * The data files are the only source of character facts, so a problem with them is
@@ -24,6 +25,29 @@ try {
   const message = error instanceof DataError ? error.message : String(error);
   console.error(`\nCould not load the data files.\n  ${message}\n`);
   process.exit(1);
+}
+
+/**
+ * The roster, asked of OpenRouter before the port is bound.
+ *
+ * specs.md Part 1: membership comes from OpenRouter and no free identifier is hard-coded.
+ * Fetched once here rather than per run, because it has one answer for the life of the
+ * process and `assertAllowedModel` is on the hot path of every request.
+ *
+ * **Discovery failing is not fatal.** The server still starts and still answers
+ * `/api/health`, because a browser that can load the app and read why it cannot run is
+ * better served than one that gets a closed port. `POST /api/run` refuses in plain words
+ * until a roster exists — what must never happen is a run cast from models nothing vetted.
+ */
+let roster: Roster | null = null;
+try {
+  roster = await discoverRoster();
+  setRoster(roster.models);
+} catch (error) {
+  if (!(error instanceof RosterUnavailableError)) throw error;
+  console.error(`
+${error.message}
+`);
 }
 
 const config = getServerConfig();
@@ -40,6 +64,12 @@ const server = app.listen(config.port, () => {
   }
   if (!archive) {
     console.log("  note:   MONGODB_URI is not set — runs are not archived.");
+  }
+  if (roster) {
+    const how = roster.cached ? `cached ${roster.fetchedAt}` : "fetched just now";
+    console.log(`  models: ${roster.models.length} free on OpenRouter (${how}).`);
+  } else {
+    console.log("  note:   no model roster — runs are refused until one can be fetched.");
   }
 });
 

@@ -7,7 +7,8 @@
 import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { FALLBACK_ROUTER, ModelPolicyError, assertAllowedModel, getModelRegistry, isFreeModelId, resetModelRegistry } from "../config.js";
+import { EXCLUDED_MODELS, FALLBACK_ROUTER, JUDGE_INELIGIBLE, ModelPolicyError, assertAllowedModel, getModelRegistry, isFreeModelId, resetModelRegistry, setRoster } from "../config.js";
+import { FIXTURE_ROSTER } from "./roster-fixture.js";
 import { fallbackChainFor, resolveRunModels, ADVOCATE_SEATS, JUDGE_SEATS, MAX_ATTEMPTS_PER_CALL } from "../casting.js";
 import { DEFAULT_MAX_ATTEMPTS } from "../openrouter.js";
 
@@ -80,42 +81,96 @@ describe("assertAllowedModel", () => {
   });
 });
 
-describe("environment overrides", () => {
-  it("lets a free identifier be swapped in without a code change", () => {
-    // The roster rotates weekly (specs.md Part 5), so a delisted id must be
-    // replaceable on the host. Doing so puts it on the allowlist.
-    process.env.TRIBUNAL_MODEL_JUDGE_2 = "some-vendor/newly-listed:free";
+describe("the roster is where models come from, and it cannot widen the free rule", () => {
+  /**
+   * The point of discovery: a model that appeared on OpenRouter this week is usable this
+   * week, with no code change and nobody remembering to look. This replaced sixteen
+   * hand-numbered environment variables that existed to do the same job badly.
+   */
+  it("lets a newly listed free model reach the allowlist with no code change", () => {
+    setRoster([...FIXTURE_ROSTER, "some-vendor/newly-listed:free"]);
     resetModelRegistry();
 
-    expect(getModelRegistry().judgePool).toContain("some-vendor/newly-listed:free");
+    const { allowlist } = getModelRegistry();
+    expect(allowlist.has("some-vendor/newly-listed:free")).toBe(true);
     expect(() => assertAllowedModel("some-vendor/newly-listed:free")).not.toThrow();
   });
 
-  it("refuses to start when an override names a paid model", () => {
-    // The escape hatch that must not exist: no env var can widen the free rule.
-    process.env.TRIBUNAL_MODEL_JUDGE_1 = "openai/gpt-4o";
-    resetModelRegistry();
-
-    expect(() => getModelRegistry()).toThrow(ModelPolicyError);
-    expect(() => getModelRegistry()).toThrow(/TRIBUNAL_MODEL_JUDGE_1/);
+  /**
+   * The escape hatch that must not exist. Membership now arrives from outside the process,
+   * which is exactly why the free rule is applied to it again on the way in rather than
+   * taken on trust from whoever fetched it.
+   */
+  it("refuses a roster carrying a paid model", () => {
+    expect(() => setRoster([...FIXTURE_ROSTER, "openai/gpt-4o"])).toThrow(ModelPolicyError);
+    expect(() => setRoster([...FIXTURE_ROSTER, "openai/gpt-4o"])).toThrow(/not a free model/);
   });
 
-  it("refuses a paid solo model too", () => {
-    process.env.TRIBUNAL_MODEL_SOLO = "openai/gpt-4o";
-    resetModelRegistry();
-    expect(() => getModelRegistry()).toThrow(/not a free model/);
+  it("keeps a paid identifier off the allowlist and out of every call", () => {
+    const { allowlist } = getModelRegistry();
+    expect(allowlist.has("openai/gpt-4o")).toBe(false);
+    expect(() => assertAllowedModel("openai/gpt-4o")).toThrow(ModelPolicyError);
   });
 
-  it("keeps a paid override off the allowlist entirely", () => {
-    process.env.TRIBUNAL_MODEL_ADVOCATE_1 = "openai/gpt-4o";
+  /**
+   * specs.md Part 1: presence on the roster is necessary and never sufficient. A model this
+   * app has measured and set aside stays out however it arrives.
+   */
+  it("drops a recorded exclusion even when the roster lists it as free", () => {
+    const excluded = [...EXCLUDED_MODELS.keys()][0];
+    setRoster([...FIXTURE_ROSTER, excluded]);
+    resetModelRegistry();
+
+    const { allowlist, judgePool, advocatePool } = getModelRegistry();
+    expect(allowlist.has(excluded)).toBe(false);
+    expect([...judgePool, ...advocatePool]).not.toContain(excluded);
+  });
+
+  /**
+   * Per-role eligibility, which a single pool could not express: the model that wrote two
+   * clean statements and could not produce a verdict may argue and may not judge.
+   */
+  it("keeps a judge-ineligible model off the bench and leaves it arguing", () => {
+    const ineligible = [...JUDGE_INELIGIBLE.keys()][0];
+    setRoster([...FIXTURE_ROSTER, ineligible]);
+    resetModelRegistry();
+
+    const { judgePool, advocatePool } = getModelRegistry();
+    expect(judgePool).not.toContain(ineligible);
+    expect(advocatePool).toContain(ineligible);
+  });
+
+  /**
+   * With no roster there is no run. specs.md Part 1: the app must refuse rather than seat
+   * models nothing has vetted, because a run that completes on unvetted models produces a
+   * record that looks legitimate and is not.
+   */
+  /**
+   * Found by running discovery against the real roster: `openrouter/free` passes the free
+   * rule, so it arrived and was dealt into the judge pool — which would have let a judge be
+   * cast onto the router before any failure had happened, the exact position the chain
+   * ordering and the responded-model check exist to prevent.
+   */
+  it("never seats the fallback router, but keeps it reachable as a last resort", () => {
+    setRoster([...FIXTURE_ROSTER, FALLBACK_ROUTER]);
+    resetModelRegistry();
+
+    const { judgePool, advocatePool, allowlist, solo } = getModelRegistry();
+    expect(judgePool).not.toContain(FALLBACK_ROUTER);
+    expect(advocatePool).not.toContain(FALLBACK_ROUTER);
+    expect(solo).not.toBe(FALLBACK_ROUTER);
+    // Still callable: every fallback chain ends with it.
+    expect(allowlist.has(FALLBACK_ROUTER)).toBe(true);
+  });
+
+  it("refuses to compose a registry when the roster is too thin to cast a run", () => {
+    setRoster(["alpha/only-one:free", "beta/only-two:free"]);
     resetModelRegistry();
     expect(() => getModelRegistry()).toThrow(ModelPolicyError);
-
-    delete process.env.TRIBUNAL_MODEL_ADVOCATE_1;
-    resetModelRegistry();
-    expect(getModelRegistry().allowlist.has("openai/gpt-4o")).toBe(false);
+    expect(() => getModelRegistry()).toThrow(/No run can be cast/);
   });
 });
+
 
 describe("the registry itself", () => {
   it("holds only free identifiers", () => {

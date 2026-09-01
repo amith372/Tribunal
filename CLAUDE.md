@@ -10,7 +10,7 @@ A school project for a vibe-coding class. A charge sheet goes in; four advocates
 ## Stack
 | Layer | Choice |
 |---|---|
-| Backend | Node + TypeScript (Express); pure pipeline modules, thin routing layer |
+| Backend | Node + TypeScript (Express); pure pipeline modules, thin routing layer. Model **policy** (`config.ts`) and model **casting** (`casting.ts`) are separate, and the dependency runs one way — a test fails if it ever reverses |
 | Frontend | React + Vite + TypeScript, single page, SSE-driven |
 | Assets | Avatar art: 17 source PNGs in `C:\Users\Amit_PC\Downloads\Tribunal` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.png` / `undone_judge.png`. Downsample to ≤256 px WebP into `web/public/avatars/`; commit the WebP only, never the multi-MB originals |
 | Models | OpenRouter, free (`:free`) models only. Roster membership discovered from OpenRouter at runtime; eligibility and casting server-side, never user-reachable |
