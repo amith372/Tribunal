@@ -285,7 +285,10 @@ function report(frames: Frame[]): void {
   const distinct = new Set(seats.map((seat) => seat.model).filter((model) => model !== null));
   line(
     routed.length === 0 && unpinned.length === 0,
-    "every seat served by a pinned model",
+    // "pinned" until 03: nothing is pinned now, the roster is discovered. The check is
+    // unchanged and still the one that matters — the router resolves to whatever it likes,
+    // so a seat it served is a seat no vetting stands behind.
+    "every seat served by a vetted model",
     routed.length > 0
       ? `${routed.length} call${routed.length === 1 ? "" : "s"} fell through to ${FALLBACK_ROUTER}`
       : unpinned.length > 0
