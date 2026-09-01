@@ -20,7 +20,8 @@
 
 import "../src/env.js";
 import { aggregate, type RunRecord } from "../src/aggregate.js";
-import { getServerConfig, resolveRunModels, type Mode } from "../src/config.js";
+import { getServerConfig } from "../src/config.js";
+import { resolveRunModels, type Mode } from "../src/casting.js";
 import { loadData } from "../src/data.js";
 import { runJudging } from "../src/judging.js";
 import { preflight } from "../src/preflight.js";

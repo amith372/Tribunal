@@ -17,14 +17,8 @@
  */
 
 import { noteFailure, noteSuccess } from "./model-health.js";
-import {
-  EXCLUDED_MODELS,
-  MAX_ATTEMPTS_PER_CALL,
-  ModelPolicyError,
-  assertAllowedModel,
-  getServerConfig,
-  requireApiKey,
-} from "./config.js";
+import { EXCLUDED_MODELS, ModelPolicyError, assertAllowedModel, getServerConfig, requireApiKey } from "./config.js";
+import { MAX_ATTEMPTS_PER_CALL } from "./casting.js";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 

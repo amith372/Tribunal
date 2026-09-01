@@ -22,7 +22,7 @@
 import type { Attempt, Usage } from "./openrouter.js";
 import type { JudgeOutcome } from "./judging.js";
 import type { Verdict } from "./judge-parser.js";
-import type { RunModels } from "./config.js";
+import type { RunModels } from "./casting.js";
 import type { CastAdvocate, Side, ValidRun } from "./preflight.js";
 import type { AbortReason, StatementOutcome, StatementsResult } from "./statements.js";
 

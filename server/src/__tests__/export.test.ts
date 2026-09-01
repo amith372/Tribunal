@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { aggregate, type RunRecord } from "../aggregate.js";
 import { buildExportHtml, escapeHtml } from "../export.js";
 import { NO_ANSWER } from "../summary.js";
-import { resolveRunModels } from "../config.js";
+import { resolveRunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
 import { runStatements, toDeliveredStatements } from "../statements.js";

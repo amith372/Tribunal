@@ -10,7 +10,7 @@ import { aggregate } from "../src/aggregate.js";
 import { buildExportHtml } from "../src/export.js";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolveRunModels } from "../src/config.js";
+import { resolveRunModels } from "../src/casting.js";
 import { loadData } from "../src/data.js";
 import { runJudging } from "../src/judging.js";
 import { preflight } from "../src/preflight.js";

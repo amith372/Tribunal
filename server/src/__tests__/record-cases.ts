@@ -17,13 +17,13 @@
  */
 
 import { aggregate, type RunRecord } from "../aggregate.js";
-import { resolveRunModels } from "../config.js";
+import { resolveRunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
 import { preflight, type ValidRun } from "../preflight.js";
 import { runStatements, toDeliveredStatements } from "../statements.js";
 import type { ErrorKind } from "../openrouter.js";
-import type { Mode } from "../config.js";
+import type { Mode } from "../casting.js";
 import { scriptedCaller } from "./fake-caller.js";
 import { PART_4_CAST, PART_4_CHARGE_SHEET } from "./preflight-cases.js";
 

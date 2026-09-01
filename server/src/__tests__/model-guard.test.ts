@@ -4,20 +4,11 @@
  * user-editable model field is a cost hole).
  */
 
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  FALLBACK_ROUTER,
-  ModelPolicyError,
-  assertAllowedModel,
-  fallbackChainFor,
-  getModelRegistry,
-  isFreeModelId,
-  resetModelRegistry,
-  resolveRunModels,
-  ADVOCATE_SEATS,
-  JUDGE_SEATS,
-  MAX_ATTEMPTS_PER_CALL,
-} from "../config.js";
+import { FALLBACK_ROUTER, ModelPolicyError, assertAllowedModel, getModelRegistry, isFreeModelId, resetModelRegistry } from "../config.js";
+import { fallbackChainFor, resolveRunModels, ADVOCATE_SEATS, JUDGE_SEATS, MAX_ATTEMPTS_PER_CALL } from "../casting.js";
 import { DEFAULT_MAX_ATTEMPTS } from "../openrouter.js";
 
 /**
@@ -469,5 +460,43 @@ describe("fallback chains", () => {
       expect(chain.length).toBeLessThanOrEqual(MAX_ATTEMPTS_PER_CALL);
       expect(chain.length).toBeLessThanOrEqual(DEFAULT_MAX_ATTEMPTS);
     }
+  });
+});
+
+/* ---- the seam between policy and casting -------------------------------------------------- */
+
+/**
+ * **The split only holds while the dependency runs one way.**
+ *
+ * `config.ts` composes the allowlist out of identifiers that have already passed
+ * `isFreeModelId`, and `casting.ts` can only be handed those pools — which is what makes
+ * casting safe *by construction* rather than by remembering to check. That property lived,
+ * before the split, in the fact that one file held both halves. Now it lives in the
+ * direction of a single import, and a direction is exactly the kind of thing that gets
+ * reversed by someone fixing something else in a hurry.
+ *
+ * So it is asserted rather than described. The old file's whole history is the argument:
+ * both faults of 2026-08-22 were casting changes made inside the file the free rule lives
+ * in, and neither was caught by anything until a live run put a content-safety classifier
+ * on the bench.
+ */
+describe("policy does not depend on casting", () => {
+  const read = (name: string): string =>
+    readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+
+  it("casting imports policy, and policy imports nothing back", () => {
+    expect(read("casting.ts")).toMatch(/from "\.\/config\.js"/);
+    expect(read("config.ts")).not.toMatch(/from "\.\/casting\.js"/);
+  });
+
+  /**
+   * The two names that decide what may ever be called. If either is ever defined in
+   * `casting.ts` rather than imported from policy, the seam has been crossed and the
+   * guarantee is back to being a habit.
+   */
+  it("keeps the free rule and the allowlist check out of casting", () => {
+    const casting = read("casting.ts");
+    expect(casting).not.toMatch(/function isFreeModelId/);
+    expect(casting).not.toMatch(/function assertAllowedModel/);
   });
 });

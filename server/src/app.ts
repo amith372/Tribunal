@@ -30,14 +30,8 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  ADVOCATE_SEATS,
-  FALLBACK_ROUTER,
-  getModelRegistry,
-  getServerConfig,
-  JUDGE_SEATS,
-  type Mode,
-} from "./config.js";
+import { FALLBACK_ROUTER, getModelRegistry, getServerConfig } from "./config.js";
+import { ADVOCATE_SEATS, JUDGE_SEATS, type Mode } from "./casting.js";
 import type { RunRecord } from "./aggregate.js";
 import { type RunArchive } from "./archive.js";
 import type { TribunalData } from "./data.js";

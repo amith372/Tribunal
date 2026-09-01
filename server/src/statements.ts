@@ -23,7 +23,7 @@
  * undecided until there are real numbers from real calls.
  */
 
-import { fallbackChainFor, type Mode } from "./config.js";
+import { fallbackChainFor, type Mode } from "./casting.js";
 import { warmFirst } from "./model-health.js";
 import type { TribunalData } from "./data.js";
 import {

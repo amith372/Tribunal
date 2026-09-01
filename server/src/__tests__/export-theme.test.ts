@@ -22,7 +22,7 @@ import { aggregate, type RunRecord } from "../aggregate.js";
 import { buildExportHtml } from "../export.js";
 import { EXPORT_TOKENS } from "../export-theme.js";
 import { FONT_FAMILY, FONT_WOFF2_BASE64 } from "../export-font.js";
-import { resolveRunModels } from "../config.js";
+import { resolveRunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
 import { preflight } from "../preflight.js";

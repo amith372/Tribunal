@@ -32,7 +32,7 @@
  */
 
 import { aggregate, type RunRecord } from "./aggregate.js";
-import { resolveRunModels, type Mode, type RunModels } from "./config.js";
+import { resolveRunModels, type Mode, type RunModels } from "./casting.js";
 import type { TribunalData } from "./data.js";
 import { runJudging, type JudgeOutcome } from "./judging.js";
 import type { Attempt } from "./openrouter.js";

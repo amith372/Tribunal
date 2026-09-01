@@ -29,7 +29,7 @@
  * and no network.
  */
 
-import { fallbackChainFor, type Mode } from "./config.js";
+import { fallbackChainFor, type Mode } from "./casting.js";
 import type { TribunalData } from "./data.js";
 import {
   OpenRouterError,

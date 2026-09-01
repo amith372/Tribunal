@@ -9,7 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getModelRegistry, type RunModels } from "../config.js";
+import { getModelRegistry } from "../config.js";
+import { type RunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { preflight, type ValidRun } from "../preflight.js";
 import { executeRun } from "../run.js";
