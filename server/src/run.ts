@@ -32,7 +32,7 @@
  */
 
 import { aggregate, type RunRecord } from "./aggregate.js";
-import type { Mode, RunModels } from "./config.js";
+import { resolveRunModels, type Mode, type RunModels } from "./config.js";
 import type { TribunalData } from "./data.js";
 import { runJudging, type JudgeOutcome } from "./judging.js";
 import type { Attempt } from "./openrouter.js";
@@ -64,8 +64,19 @@ export type RunEmit = (event: RunEventName, data: unknown) => void;
 export interface ExecuteRunOptions {
   readonly run: ValidRun;
   readonly data: TribunalData;
-  /** The seven models for this run, already resolved so the caller can announce them. */
-  readonly models: RunModels;
+  /** How the seven seats are cast. The models themselves are resolved here. */
+  readonly mode: Mode;
+  /** Named in the opening frame, so a browser can rejoin the run it is watching. */
+  readonly runId?: string;
+  /**
+   * The seven models, pre-resolved. **A test seam, and nothing else uses it.**
+   *
+   * A run normally casts its own seats from `mode`, because which model sits where is
+   * part of running a trial rather than part of serving HTTP. A test that asserted on a
+   * shuffled roster would assert on a coin toss, so it may pin the seven instead — the
+   * same arrangement `call`, `timeoutMs` and `now` already have.
+   */
+  readonly models?: RunModels;
   /** Fired as each role settles, and once more with the finished record. */
   readonly emit: RunEmit;
   /** The seam the tests replace. Defaults to the real OpenRouter client. */
@@ -194,8 +205,19 @@ function hitDailyLimit(statements: StatementsResult): boolean {
  * the routing layer's `error` event rather than a run at all.
  */
 export async function executeRun(options: ExecuteRunOptions): Promise<RunRecord> {
-  const { run, data, models } = options;
-  const mode: Mode = models.mode;
+  const { run, data } = options;
+  const mode: Mode = options.mode;
+
+  /**
+   * **The casting is decided here, not by whoever called this.**
+   *
+   * specs.md Part 1 has the models shuffled within their pool on every run, and the seats
+   * kept distinct under failure as well as at casting. That is a fact about a trial, so it
+   * belongs to the function that runs one — `app.ts` resolved it and announced it for as
+   * long as this took its seven models pre-made, which put the seating plan in an Express
+   * callback where the only way to check it was to stand up a server and read SSE frames.
+   */
+  const models = options.models ?? resolveRunModels(mode);
   const now = options.now ?? (() => new Date());
   const timeoutMs = options.timeoutMs ?? RUN_TIMEOUT_MS;
 
@@ -211,6 +233,34 @@ export async function executeRun(options: ExecuteRunOptions): Promise<RunRecord>
     if (event === "done" || event === "error") sealed = true;
     options.emit(event, payload);
   };
+
+  /**
+   * The opening frame: who is on trial, who is arguing, who is sitting, and which model
+   * each of them was asked for — sent before a single model has been asked anything.
+   *
+   * specs.md Part 3 has the record's events pushed as they settle; this is the one that
+   * settles before any of them, and it is what the trial screen draws the room from while
+   * the whole first wave is still in flight. It is emitted here rather than by the routing
+   * layer because it states the casting, and the casting is decided above.
+   */
+  emit("preflight", {
+    runId: options.runId ?? null,
+    mode,
+    chargeSheet: run.chargeSheet,
+    chargeSheetWords: run.chargeSheetWords,
+    defendant: { id: run.defendant.id, name: run.defendant.name },
+    casting: run.advocates.map((advocate, index) => ({
+      id: advocate.character.id,
+      name: advocate.character.name,
+      side: advocate.side,
+      requestedModel: models.advocates[index],
+    })),
+    bench: data.judges.map((judge, index) => ({
+      id: judge.id,
+      name: judge.name,
+      requestedModel: models.judges[index],
+    })),
+  });
 
   const seenStatements: StatementOutcome[] = [];
   const statementsWave = runStatements({

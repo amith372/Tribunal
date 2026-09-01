@@ -36,7 +36,6 @@ import {
   getModelRegistry,
   getServerConfig,
   JUDGE_SEATS,
-  resolveRunModels,
   type Mode,
 } from "./config.js";
 import type { RunRecord } from "./aggregate.js";
@@ -178,7 +177,24 @@ export function createApp(options: AppOptions): Express {
     });
   });
 
-  /**
+    /**
+   * What happens to a record once the run has finished with it.
+   *
+   * **Fire-and-forget, warn-and-swallow, and that is the whole rule.** A run has already
+   * spent seven rationed requests by the time it gets here; a database outage must never
+   * turn that into a failed run. The two writes had this discipline written out twice,
+   * which is two places for it to be got wrong later.
+   */
+  const keep = (runId: string, record: RunRecord): void => {
+    if (options.logRuns !== false) void appendRun(runId, record);
+    if (archive) {
+      void archive.save(runId, record, data.relations).catch((error: unknown) => {
+        console.warn(`Could not archive run ${runId}: ${(error as Error).message}`);
+      });
+    }
+  };
+
+/**
    * Starts a run and streams it. The response is an event stream from the first byte, so
    * the four advocates and three judges arrive as they settle rather than in one lump at
    * the end — Part 3's "pushed as they settle", and what Stage 7's avatars depend on.
@@ -209,8 +225,6 @@ export function createApp(options: AppOptions): Express {
       return;
     }
 
-    const mode = readMode(body.mode);
-    const models = resolveRunModels(mode);
     const runId = buffer.open();
 
     const emit: RunEmit = (event, payload) => {
@@ -220,46 +234,20 @@ export function createApp(options: AppOptions): Express {
 
     stream(res, buffer, runId, 0);
 
-    // The casting, before anything has been asked of a model: what Stage 7 draws the
-    // room from while the first wave is still in flight.
-    emit("preflight", {
-      runId,
-      mode,
-      chargeSheet: check.run.chargeSheet,
-      chargeSheetWords: check.run.chargeSheetWords,
-      defendant: { id: check.run.defendant.id, name: check.run.defendant.name },
-      casting: check.run.advocates.map((advocate, index) => ({
-        id: advocate.character.id,
-        name: advocate.character.name,
-        side: advocate.side,
-        requestedModel: models.advocates[index],
-      })),
-      bench: data.judges.map((judge, index) => ({
-        id: judge.id,
-        name: judge.name,
-        requestedModel: models.judges[index],
-      })),
-    });
-
+    // Everything from here is the run's own business, the opening frame included: what the
+    // casting is, which model each seat was asked for, and in what order any of it is
+    // announced. This layer reads a request, refuses an invalid one, opens the stream and
+    // gets out of the way.
     void executeRun({
       run: check.run,
       data,
-      models,
+      mode: readMode(body.mode),
+      runId,
       emit,
       ...(options.call ? { call: options.call } : {}),
       ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     })
-      .then((record) => {
-        if (options.logRuns !== false) void appendRun(runId, record);
-        // Fire-and-forget, warn-and-swallow: a database outage must never fail a run
-        // that has already spent seven rationed calls. Same discipline as
-        // `runs-log.ts`'s own write, and the same reason.
-        if (archive) {
-          void archive.save(runId, record, data.relations).catch((error: unknown) => {
-            console.warn(`Could not archive run ${runId}: ${(error as Error).message}`);
-          });
-        }
-      })
+      .then((record) => keep(runId, record))
       .catch((error: unknown) => {
         // Only a fault in the app itself reaches here — everything a model did is an
         // outcome the record already carries honestly. Which is exactly why the message

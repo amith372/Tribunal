@@ -76,20 +76,58 @@ describe("a run where every seat answers", () => {
     const { call } = scriptedCaller(SPOKEN);
     const { events, emit } = recorder();
 
-    await executeRun({ run, data, models: MODELS, emit, call });
+    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call });
 
     expect(events.map((event) => event.event)).toEqual([
+      // The casting, before a single model has been asked anything.
+      "preflight",
       "statement", "statement", "statement", "statement",
       "judge", "judge", "judge",
       "done",
     ]);
   });
 
+  /**
+   * **The seating plan, asserted without an HTTP server.**
+   *
+   * This frame used to be built inside the `POST /api/run` callback, which meant the only
+   * way to check which model each seat had been asked for was to stand up an app and read
+   * SSE frames out of a 500-line HTTP suite. It is the run's own first event now, so the
+   * question can be asked of a function.
+   */
+  it("opens by naming every seat and the model it was asked for", async () => {
+    const { call } = scriptedCaller(SPOKEN);
+    const { events, emit } = recorder();
+
+    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, runId: "r-1" });
+
+    const opening = events[0];
+    expect(opening?.event).toBe("preflight");
+    const frame = opening?.data as {
+      runId: string;
+      mode: string;
+      casting: { id: string; side: string; requestedModel: string }[];
+      bench: { id: string; requestedModel: string }[];
+    };
+
+    expect(frame.runId).toBe("r-1");
+    expect(frame.mode).toBe(MODELS.mode);
+
+    // Four advocates and three judges, each carrying the model actually asked for — in
+    // casting order, which is what pairs a seat with its model.
+    expect(frame.casting.map((seat) => seat.requestedModel)).toEqual(MODELS.advocates);
+    expect(frame.bench.map((seat) => seat.requestedModel)).toEqual(MODELS.judges);
+    expect(frame.casting.map((seat) => seat.id)).toEqual(
+      run.advocates.map((advocate) => advocate.character.id),
+    );
+    expect(frame.bench.map((seat) => seat.id)).toEqual(data.judges.map((judge) => judge.id));
+  });
+
   it("returns the same record it emitted — one record, three renderings", async () => {
     const { call } = scriptedCaller(SPOKEN);
     const { events, emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call });
     const done = events.at(-1);
 
     expect(done?.event).toBe("done");
@@ -100,7 +138,7 @@ describe("a run where every seat answers", () => {
     const { call, calls } = scriptedCaller(SPOKEN);
     const { emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call });
 
     expect(calls).toHaveLength(7);
     expect(record.totals.calls).toBe(7);
@@ -120,7 +158,7 @@ describe("a run where every seat answers", () => {
       return fakeResult(options, "Verdict: guilty. A reason. Another reason.");
     };
 
-    await executeRun({ run, data, models: MODELS, emit: recorder().emit, call });
+    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit: recorder().emit, call });
 
     const lastAdvocate = order.findLastIndex((label) => label.startsWith("advocate:"));
     const firstJudge = order.findIndex((label) => label.startsWith("judge:"));
@@ -138,12 +176,14 @@ describe("the whole-run deadline", () => {
     });
     const { events, emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call, timeoutMs: 40 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 40 });
 
     expect(record.outcome.kind).toBe("aborted");
     if (record.outcome.kind === "aborted") expect(record.outcome.reason).toBe("run_timeout");
     expect(calls.filter((options) => options.label.startsWith("judge:"))).toHaveLength(0);
-    expect(events.map((event) => event.event)).toEqual(["done"]);
+    // The room is still drawn before the deadline stops the run: the casting was real,
+    // and the record says the trial was abandoned rather than that it never happened.
+    expect(events.map((event) => event.event)).toEqual(["preflight", "done"]);
   });
 
   it("keeps the advocates who did answer, and marks the ones who did not as failed", async () => {
@@ -153,7 +193,7 @@ describe("the whole-run deadline", () => {
     };
     const { emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call, timeoutMs: 60 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 60 });
 
     // Casting order, all four present — a gap is written in, never left out.
     expect(record.statements).toHaveLength(4);
@@ -172,7 +212,7 @@ describe("the whole-run deadline", () => {
     };
     const { emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call, timeoutMs: 120 });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 120 });
 
     expect(record.judges).toHaveLength(3);
     expect(record.tally.guilty).toBe(2);
@@ -189,7 +229,7 @@ describe("the whole-run deadline", () => {
       return fakeResult(options, "A statement about the case that was made.");
     };
 
-    await executeRun({ run, data, models: MODELS, emit, call, timeoutMs: 40 });
+    await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call, timeoutMs: 40 });
     const afterDone = events.length;
     await sleep(200);
 
@@ -208,7 +248,7 @@ describe("the account's daily allowance", () => {
 
   it("stops the run at once rather than spending the bench's requests too", async () => {
     const { call, calls } = scriptedCaller(capped);
-    const record = await executeRun({ run, data, models: MODELS, emit: recorder().emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit: recorder().emit, call });
 
     expect(calls).toHaveLength(4);
     expect(record.outcome.kind).toBe("aborted");
@@ -216,7 +256,7 @@ describe("the account's daily allowance", () => {
 
   it("says so in plain words instead of telling the user to try again in a moment", async () => {
     const { call } = scriptedCaller(capped);
-    const record = await executeRun({ run, data, models: MODELS, emit: recorder().emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit: recorder().emit, call });
 
     expect(record.outcome.kind).toBe("aborted");
     if (record.outcome.kind !== "aborted") return;
@@ -235,7 +275,7 @@ describe("the account's daily allowance", () => {
       "advocate:grey-worm": ["daily_limit"],
     });
 
-    const record = await executeRun({ run, data, models: MODELS, emit: recorder().emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit: recorder().emit, call });
 
     expect(record.outcome.kind).toBe("aborted");
     if (record.outcome.kind === "aborted") expect(record.outcome.reason).toBe("daily_limit");
@@ -252,7 +292,7 @@ describe("a run the models spoiled", () => {
       "advocate:grey-worm": ["server_error"],
     });
 
-    const record = await executeRun({ run, data, models: MODELS, emit: recorder().emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit: recorder().emit, call });
 
     expect(record.outcome.kind).toBe("aborted");
     if (record.outcome.kind === "aborted") expect(record.outcome.reason).toBe("side_silenced");
@@ -263,7 +303,7 @@ describe("a run the models spoiled", () => {
     const { call } = scriptedCaller({ ...SPOKEN, "advocate:jon-snow": ["server_error"] });
     const { events, emit } = recorder();
 
-    const record = await executeRun({ run, data, models: MODELS, emit, call });
+    const record = await executeRun({ run, data, mode: MODELS.mode, models: MODELS, emit, call });
 
     expect(record.statements.filter((s) => s.ok)).toHaveLength(3);
     expect(record.outcome.kind).toBe("verdict");
