@@ -22,6 +22,7 @@
  */
 
 import type { Character, TribunalData } from "./data.js";
+import { forgedMarkerIn } from "./fence.js";
 
 /** Which side an advocate was cast on. `for` defends, `against` prosecutes. */
 export type Side = "for" | "against";
@@ -31,6 +32,7 @@ export type PreflightFailureCode =
   | "charge_sheet_too_short"
   | "charge_sheet_too_long"
   | "charge_sheet_no_charge"
+  | "charge_sheet_forges_marker"
   | "defendant_missing"
   | "defendant_unknown"
   | "defendant_not_named"
@@ -235,6 +237,27 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
       "The charge sheet doesn't say what the defendant is accused of. Name the act and the " +
         'charge — words like "accused of", "charged with", "murder", "treason" — or write the ' +
         "question the tribunal has to answer. The advocates are not allowed to invent the charge.",
+    );
+  }
+
+  /**
+   * gate: only meaningful once there is text at all, and reported whatever the length,
+   * because a sheet that is both too long and forges a marker has two faults to fix.
+   *
+   * specs.md Part 5: the markers belong to the app, not to the prose. A line that would
+   * read as one closes the fence early and has everything after it taken as instruction —
+   * the one way user text can address a model directly. Refused here rather than defused,
+   * because a person can be sent back to their own words before a call is spent.
+   */
+  const forged = chargeSheetWords > 0 ? forgedMarkerIn(chargeSheet) : null;
+  if (forged) {
+    fail(
+      "charge_sheet_forges_marker",
+      "chargeSheet",
+      `Line ${forged.line} of the charge sheet reads as one of the tribunal's own markers: ` +
+        `"${forged.text}". Those markers are how each model is told where your text stops and ` +
+        "its instructions begin, so a line like that would be read as an instruction rather " +
+        "than as evidence. Reword it or take it out.",
     );
   }
 
