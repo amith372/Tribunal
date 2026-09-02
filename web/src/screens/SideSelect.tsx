@@ -11,7 +11,7 @@ import {
   SEATS_PER_SIDE,
   sideIsOpenTo,
   type SetupDraft,
-} from "../preflight-mirror.js";
+} from "../setup-checks.js";
 import "./SideSelect.css";
 
 /**

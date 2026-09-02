@@ -119,10 +119,15 @@ export interface BuiltPrompt {
   readonly wordCap: number;
 }
 
-/** The one word-counting rule, shared by the builders, the caps and the over-cap flag. */
-export function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
-}
+/**
+ * The one word-counting rule, shared by the builders, the caps and the over-cap flag.
+ *
+ * Re-exported rather than defined here: it now lives in `preflight.ts`, because the count
+ * it produces is a pre-flight fact first — it is what becomes `chargeSheetWords` in the
+ * record — and this module already imports that one. Re-exported rather than merely moved
+ * so the call sites that think of it as a prompt-building concern still read naturally.
+ */
+export { countWords } from "./preflight.js";
 
 
 /**

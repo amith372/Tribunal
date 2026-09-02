@@ -19,7 +19,7 @@ import {
 } from "./api.js";
 import { rememberRun } from "./run-memory.js";
 import { inheritedRunSession, startRunSession, type RunSession } from "./run-session.js";
-import { castableCharacters, chargeIsReady, type SetupDraft } from "./preflight-mirror.js";
+import { castableCharacters, chargeIsReady, type SetupDraft } from "./setup-checks.js";
 import "./styles/tokens.css";
 
 /**

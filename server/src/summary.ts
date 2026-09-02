@@ -9,16 +9,19 @@
  * screen's reads as a different account of the same run, which is precisely the doubt the
  * record exists to remove.
  *
- * So the derivations live here, and `web/src/results-model.ts` mirrors them for the
- * browser. **The two are held together by a test rather than by intention**
- * (`summary-mirror.test.ts`), exactly as `web/src/preflight-mirror.ts` is held against the
- * server's pre-flight — and for the same reason: a copy nothing checks is a copy that
- * drifts, and a test living beside only one of the two cannot check agreement.
+ * So the derivations live here and the browser reads them, through the `@record` alias
+ * `web/vite.config.ts` sets up. **There is one copy, not two agreeing copies.** For a
+ * while there were two — `web/src/results-model.ts` mirrored this file line for line, held
+ * against it by `summary-mirror.test.ts` — and the argument for that arrangement was that
+ * the workspaces compile separately. They do; it was not a good enough reason, because a
+ * copy nothing checks is a copy that drifts and a copy something checks is a test whose
+ * whole job is guarding a copy. The mirror went, and the assertions stayed as
+ * `summary.test.ts`.
  *
- * Why two copies at all, rather than one shared module: the browser and the server compile
- * separately, the server's build emits only from `src`, and the exported file has to be
- * renderable with no browser anywhere near it. A shared workspace to hold eighty lines of
- * string-building would cost more than the test does.
+ * `web/src/setup-checks.ts` reads the pre-flight's predicates the same way and for the
+ * same reason. Nothing crosses that alias but pure functions: every import in this file is
+ * `import type`, so no Node built-in, no model identifier and no key can reach the browser
+ * through it.
  *
  * **Nothing here computes a number.** Every figure is read off the record the server
  * already folded; these functions choose labels, order sides and count things the record

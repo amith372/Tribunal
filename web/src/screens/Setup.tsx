@@ -10,7 +10,7 @@ import {
   setupChecks,
   type Check,
   type SetupDraft,
-} from "../preflight-mirror.js";
+} from "../setup-checks.js";
 import { EXAMPLE_CASE } from "../example-case.js";
 import "./Setup.css";
 
@@ -213,7 +213,7 @@ export function Setup({
 
 /**
  * One pre-flight line. Three states: a green tick, a crimson cross, and an open circle for
- * a check that cannot be answered yet — see `preflight-mirror.ts` on why pending is not a
+ * a check that cannot be answered yet — see `setup-checks.ts` on why pending is not a
  * quiet failure.
  */
 function CheckLine({ check }: { check: Check }) {

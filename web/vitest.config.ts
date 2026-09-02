@@ -15,10 +15,12 @@ import { defineConfig } from "vitest/config";
  * What remains is what is genuinely the browser's: which panel is on screen, and what a tab
  * remembers between page loads. Neither is part of the record.
  *
- * `preflight-mirror.ts` is still the exception that proves the arrangement: it is tested
- * from the *server's* suite, against the same case catalogue the server's own pre-flight
- * runs — because what matters about it is that the two agree, and a test that lives beside
- * only one of them cannot check that.
+ * `setup-checks.ts` is tested from the *server's* suite for the same reason, and it is no
+ * longer an exception to the arrangement above — it was `preflight-mirror.ts`, and its
+ * copies of the pre-flight's predicates went the way `results-model.ts` went. What its test
+ * still checks is the part that was never shared: that the screens' own assembly of the
+ * checks, and their own casting rules, accept exactly the drafts the server accepts. A test
+ * beside only one of those two halves cannot check that they agree.
  */
 export default defineConfig({
   // The alias `vite.config.ts` sets, repeated because vitest reads this config and not

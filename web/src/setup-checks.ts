@@ -1,5 +1,5 @@
 /**
- * The client's mirror of `server/src/preflight.ts`.
+ * The pre-flight's checks, as the setup screens draw them.
  *
  * **It exists for the feedback, not for the check.** The server runs the real pre-flight
  * on every run and refuses an invalid one before a single model call (specs.md Parts 1
@@ -8,40 +8,31 @@
  * typing rather than after pressing Run — which matters here more than usual, because the
  * cheapest thing this app can waste is one of ~50 rationed free requests a day.
  *
- * **It mirrors by reading the rules, not by remembering them.** The word bounds, the
- * names each defendant is searched for, and the stems that read as an accusation all
- * arrive from `/api/health`, so there is no second copy of the rules here to drift out of
- * step with the server's. What is duplicated is only the three test functions below, and
- * each is written to match its counterpart exactly — the regex included.
+ * **This was a mirror, and is not one any more.** It used to re-implement the server's
+ * three predicates — the word count, the name match, the accusation cues — with a test in
+ * the *server's* suite proving the two copies still agreed. They are imported now, across
+ * the same `@record` alias `summary.ts` is read through, so the drift that test was
+ * guarding cannot happen rather than merely being detected. `forgedMarkerIn` comes from
+ * `fence.ts` for the same reason: this file used to hard-code the fence's own sigils a
+ * second time, which is the copy most likely to go wrong unnoticed.
  *
- * Where the two ever disagree, the server wins and the user sees its message.
+ * **What still arrives over the wire is the rules themselves.** The word bounds, the names
+ * each defendant is searched for and the accusation cues come from `/api/health`, and are
+ * passed into the imported predicates. That is the point of the split: the *logic* is the
+ * server's source, but the *values* are the running server's, so a browser holding a cached
+ * bundle after a deploy still judges by the rules the server is actually enforcing.
+ *
+ * What remains below is genuinely the browser's: turning those answers into pass, fail and
+ * pending lines beside a form, and the casting rules the next screen needs. Where the
+ * screen and the server ever disagree, the server wins and the user sees its message.
  */
+
+import { countWords, looksLikeACharge, mentions } from "@record/preflight.js";
+import { forgedMarkerIn } from "@record/fence.js";
 
 import type { Character, PreflightRules, Side } from "./api.js";
 
-/** Same as the server's: whitespace-separated, empties dropped. */
-export function countWords(text: string): number {
-  return text
-    .trim()
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Whole-word and case-insensitive, exactly as the server matches. */
-export function mentions(text: string, name: string): boolean {
-  return new RegExp(`(^|[^\\p{L}])${escapeRegExp(name)}([^\\p{L}]|$)`, "iu").test(text);
-}
-
-/** A question mark passes on its own; otherwise a whole word must start with a cue. */
-export function looksLikeACharge(text: string, cues: readonly string[]): boolean {
-  if (text.includes("?")) return true;
-  const tokens = text.toLowerCase().match(/\p{L}+/gu) ?? [];
-  return tokens.some((token) => cues.some((cue) => token.startsWith(cue)));
-}
+export { countWords };
 
 /**
  * A line in the pre-flight panel. `pending` is a third state and not a soft failure: a
@@ -110,35 +101,6 @@ export function lengthState(
     };
   }
   return { words, status: "pass", message: null };
-}
-
-/**
- * The server's fence, mirrored. `server/src/fence.ts` owns the markers that separate the
- * charge sheet from the instructions around it, and a line that reads as one would close
- * the fence early — so the server refuses it (`charge_sheet_forges_marker`).
- *
- * Duplicated here for the same reason the three checks above are, and held against the
- * server by the same test: a screen that says a sheet is fine while the server refuses it
- * costs the user a press of a button they were told was safe.
- *
- * Line-anchored, exactly as the server is: a marker only means anything on a line of its
- * own, and matching mid-line would fail a sheet that merely mentions the end of a document.
- */
-export function forgedMarkerLine(text: string): { line: number; text: string } | null {
-  // Split on the newline alone and trim: a trailing carriage return is whitespace, so trim
-  // takes it, and the server reaches the same lines either way.
-  const lines = text.split("\n");
-  for (let index = 0; index < lines.length; index += 1) {
-    const trimmed = (lines[index] ?? "").trim();
-    if (
-      trimmed.startsWith(">>>") ||
-      trimmed.startsWith("<<<") ||
-      /^-{2,}\s*STATEMENT\b/i.test(trimmed)
-    ) {
-      return { line: index + 1, text: trimmed };
-    }
-  }
-  return null;
 }
 
 /**
@@ -224,7 +186,7 @@ export function setupChecks(
    * as it is answered; this one is an exceptional fault nobody trips on an ordinary case,
    * and a permanent row reading "no line reads as a marker" would be noise on every run.
    */
-  const forged = words > 0 ? forgedMarkerLine(sheet) : null;
+  const forged = words > 0 ? forgedMarkerIn(sheet) : null;
   const marker: Check | null = forged
     ? {
         id: "marker",

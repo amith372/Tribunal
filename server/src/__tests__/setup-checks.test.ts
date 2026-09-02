@@ -1,25 +1,30 @@
 /**
- * The browser's copy of the pre-flight rules, held against this server's.
+ * The setup screens accept exactly the drafts this server accepts.
  *
- * **Why this test exists.** `web/src/preflight-mirror.ts` re-implements the pre-flight's
- * checks so the setup screens can answer them while the user types — which matters here
- * more than it usually would, because the daily allowance is rationed in *requests*, and a
- * refusal caught before the button costs nothing while one caught after it costs a run.
- * The mirror reads the *values* from `/api/health` so there is no second copy of the word
- * bounds, the searched names or the charge cues. What it necessarily does duplicate is the
- * three functions that apply them, regex included.
+ * **What this used to be, and why it shrank.** `web/src/setup-checks.ts` was
+ * `preflight-mirror.ts`: it re-implemented the pre-flight's three predicates, and this file
+ * ran the whole `PREFLIGHT_CASES` catalogue through both copies to prove they still agreed.
+ * They are imported now, so that half of the comparison is a tautology and is gone — along
+ * with the word-counter assertion, which compared `countWords` against itself the moment
+ * the two became one function.
  *
- * Duplicated logic drifts. When it does, the failure is quiet and one-directional in the
- * worst way: the screen goes on saying a charge sheet is fine while the server refuses it,
- * and **a screen that lies encouragingly is worse than one that says nothing** — the user
- * presses a button they were told was safe and pays seven requests to be told otherwise.
+ * **What is left is not a tautology, and that is why the file survives.** The screen still
+ * assembles its own answer out of those predicates — pass, fail and the *pending* third
+ * state — and it still re-expresses the casting rules independently: four seats, two a
+ * side, and the accused never on the side that accuses them. None of that is shared code,
+ * so the screen can still drift into accepting a draft the server refuses.
  *
- * So this runs the whole `PREFLIGHT_CASES` catalogue through both, and asserts they reach
- * the same answer. It lives in the server suite rather than the web one for the reason that
- * matters: the server is the authority, so the comparison belongs where the authority is —
- * and the web workspace has no test runner.
+ * That failure is quiet and one-directional in the worst way: **a screen that lies
+ * encouragingly is worse than one that says nothing** — the user presses a button they were
+ * told was safe and pays seven requests to be told otherwise. The catalogue is the cheapest
+ * way to keep proving it cannot.
  *
- * **What it does not claim.** The mirror is a preview and never a decision. Nothing here
+ * It stays in the server's suite because the server is the authority and the comparison
+ * belongs where the authority is. (The web workspace does have a runner now — it holds what
+ * is genuinely the browser's — but a test living beside only one of the two halves cannot
+ * check that they agree.)
+ *
+ * **What it does not claim.** The screen is a preview and never a decision. Nothing here
  * relaxes the rule that `POST /api/run` re-runs the real pre-flight on every run and
  * refuses an invalid one before a single model call; specs.md Part 5's invalid-split
  * pitfall is still provable by posting straight to the API with no browser involved.
@@ -45,9 +50,8 @@ import {
   castableCharacters,
   castingIsReady,
   chargeIsReady,
-  countWords,
   type SetupDraft,
-} from "../../../web/src/preflight-mirror.js";
+} from "../../../web/src/setup-checks.js";
 
 const data = loadData();
 
@@ -113,7 +117,7 @@ function screenAccepts(draft: SetupDraft): boolean {
   );
 }
 
-describe("the browser's pre-flight mirror agrees with the server's pre-flight", () => {
+describe("the setup screens accept exactly what the server's pre-flight accepts", () => {
   for (const testCase of PREFLIGHT_CASES) {
     const draft = asDraft(testCase.input);
 
@@ -140,18 +144,4 @@ describe("the browser's pre-flight mirror agrees with the server's pre-flight", 
     });
   }
 
-  /**
-   * The word counters, compared directly rather than through a verdict.
-   *
-   * `chargeSheetWords` is the number the server puts in the run record and the export, and
-   * the counter under the textarea is what the user watched while writing. Those two
-   * disagreeing by one word at exactly 200 is the whole failure this guards.
-   */
-  it("counts the same words the server counts, on every valid case", () => {
-    for (const testCase of PREFLIGHT_CASES) {
-      const result = preflight(testCase.input, data);
-      if (!result.ok) continue;
-      expect(countWords(result.run.chargeSheet)).toBe(result.run.chargeSheetWords);
-    }
-  });
 });

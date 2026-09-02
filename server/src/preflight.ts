@@ -19,6 +19,19 @@
  *
  * It is a pure function of `(input, data)`, so it is unit-testable with no server and
  * no API key — this stage makes zero model calls by design.
+ *
+ * **The browser applies these same three predicates, imported rather than copied.**
+ * `countWords`, `mentions` and `looksLikeACharge` are exported for `web/src/setup-checks.ts`,
+ * which shows the checks answering as the user types — worth doing here because the daily
+ * allowance is rationed in *requests*, so a refusal caught before the button costs nothing
+ * and one caught after it costs a run. That file used to re-implement all three, held
+ * against this one by a test; there is one implementation now, reached across the `@record`
+ * alias exactly as `summary.ts` is.
+ *
+ * **None of which moves the authority.** `POST /api/run` runs this on every run and refuses
+ * an invalid one before a single model call, whatever any screen believed. What the browser
+ * gets is a preview, and specs.md Part 5's invalid-split pitfall is still provable by
+ * posting straight to the API with no browser involved.
  */
 
 import type { Character, TribunalData } from "./data.js";
@@ -139,7 +152,9 @@ export const SEARCHED_NAMES: Record<string, readonly string[]> = {
  * It is exported because `/api/health` serves it to the browser: the Setup screen shows
  * this check passing or failing as the user types, and a second copy of the list kept in
  * the client would eventually disagree with this one — telling the user a sheet is fine
- * that the server then refuses. The mirror reads the rule rather than remembering it.
+ * that the server then refuses. The screen reads the rule rather than remembering it, and
+ * since it also imports `looksLikeACharge` itself, it no longer remembers how to apply it
+ * either.
  */
 export const CHARGE_CUES: readonly string[] = [
   "accus", "alleg", "answerable", "arson", "assassinat", "betray", "breach", "bribe",
@@ -153,16 +168,33 @@ export const CHARGE_CUES: readonly string[] = [
 const SIDES: readonly string[] = ["for", "against"];
 const SIDE_LABEL: Record<Side, string> = { for: "defending", against: "prosecuting" };
 
-function words(text: string): string[] {
-  return text.trim().split(/\s+/).filter((word) => word.length > 0);
+/**
+ * The one word-counting rule — the number that becomes `chargeSheetWords` in the run
+ * record and the export, and the number under the browser's textarea.
+ *
+ * **Exported because the setup screen counts with it too.** `web/src/setup-checks.ts`
+ * imports this across the `@record` alias rather than keeping a copy, so the counter the
+ * user watches while writing and the counter that decides the run cannot disagree at
+ * exactly 300. `prompts.ts` imports it as well, so the caps, the over-cap flag and this
+ * check are all one rule rather than three that happen to match.
+ */
+export function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter((word) => word.length > 0).length;
 }
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Whole-word and case-insensitive. Without the boundaries "Jon" would match "Jonquil". */
-function mentions(text: string, name: string): boolean {
+/**
+ * Whole-word and case-insensitive. Without the boundaries "Jon" would match "Jonquil".
+ *
+ * Exported for the setup screen, which asks the same question about the same sheet while
+ * the user types. The regex is the check — a second copy of it in the browser was the
+ * expensive kind of duplication, because the two drifting apart would show the user a
+ * green tick on a sheet the server then refuses.
+ */
+export function mentions(text: string, name: string): boolean {
   return new RegExp(`(^|[^\\p{L}])${escapeRegExp(name)}([^\\p{L}]|$)`, "iu").test(text);
 }
 
@@ -173,10 +205,22 @@ function namesFor(character: Character): readonly string[] {
   return SEARCHED_NAMES[character.id] ?? [character.name];
 }
 
-function looksLikeACharge(text: string): boolean {
+/**
+ * Whether the sheet reads as an accusation. A question mark passes on its own; otherwise
+ * a whole word must begin with one of the cues.
+ *
+ * **The cues are a parameter rather than a closed-over constant, and that is deliberate.**
+ * The server passes `CHARGE_CUES` below — its own list, the authority. The setup screen
+ * passes the list it was served by `/api/health`, which is the *running* server's list
+ * rather than the one the browser bundle was built against. Closing over the constant here
+ * would have quietly made a cached bundle judge by yesterday's rules, which is precisely
+ * the drift the wire contract exists to prevent. One implementation, two sources of the
+ * list, and the deployed server is always the one that decides.
+ */
+export function looksLikeACharge(text: string, cues: readonly string[]): boolean {
   if (text.includes("?")) return true;
   const tokens = text.toLowerCase().match(/\p{L}+/gu) ?? [];
-  return tokens.some((token) => CHARGE_CUES.some((cue) => token.startsWith(cue)));
+  return tokens.some((token) => cues.some((cue) => token.startsWith(cue)));
 }
 
 function quoteList(items: readonly string[]): string {
@@ -204,7 +248,7 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
   // ---- charge sheet -------------------------------------------------------------
   const rawChargeSheet = typeof input.chargeSheet === "string" ? input.chargeSheet : "";
   const chargeSheet = rawChargeSheet.trim();
-  const chargeSheetWords = words(chargeSheet).length;
+  const chargeSheetWords = countWords(chargeSheet);
 
   if (chargeSheetWords === 0) {
     fail(
@@ -230,7 +274,7 @@ export function preflight(input: PreflightInput, data: TribunalData): PreflightR
   }
 
   // gate: only meaningful once there is enough text to hold a charge at all.
-  if (chargeSheetWords >= MIN_CHARGE_SHEET_WORDS && !looksLikeACharge(chargeSheet)) {
+  if (chargeSheetWords >= MIN_CHARGE_SHEET_WORDS && !looksLikeACharge(chargeSheet, CHARGE_CUES)) {
     fail(
       "charge_sheet_no_charge",
       "chargeSheet",
