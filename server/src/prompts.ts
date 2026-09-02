@@ -103,8 +103,26 @@ export const JUDGE_SENTENCES = "6 to 8";
  * described, with the ceiling still set below what the model spends before answering.
  * `judging.ts` now also reads `finish_reason: "length"` as truncation, so exceeding
  * even this ceiling is detected rather than parsed as if it were an answer.
+ *
+ * Raised again, 2500 to 4000, on the run of 2026-09-02. Barak drew
+ * `nemotron-3.5-lightning:free`, and **both** of his calls returned exactly 2,500
+ * completion tokens with `finish_reason: "length"`: the model writes its deliberation
+ * into `content` — "Here's a thinking process: 1. **Analyze User Input:**…" — rather than
+ * into the reasoning channel, so `reasoning: { effort: "low", exclude: true }` had nothing
+ * to cap and nothing to strip. The first reply was cut one sentence short of deciding; the
+ * second, at temperature 0, spent its 2,500 re-deriving the facts and was still weighing.
+ * So this buys the first of those two and is not claimed to buy the second: a model that
+ * thinks in the open can outrun any ceiling, and the ceiling is not where that is caught.
+ * What catches it is the truncation check in `judging.ts`, and what a reader is told about
+ * it is the account on the failed seat (`summary.ts`, `judgeNoAnswer`).
+ *
+ * Headroom is still free in tokens — they are counted only if generated, and a judge that
+ * answers plainly finishes far below this — but it is not free in *time*: those two cut-off
+ * calls took 54.5s and 75.0s, and a ceiling raised without limit would let one seat hold up
+ * a wave. 4000 is a little over the worst thinking measured plus the answer, on the same
+ * basis the advocate's 3000 was set, and not an invitation to think for longer.
  */
-export const JUDGE_MAX_TOKENS = 2500;
+export const JUDGE_MAX_TOKENS = 4000;
 
 /** How a side is named to the model. The UI uses the same two words. */
 export const SIDE_NAME: Record<Side, string> = { for: "the defense", against: "the prosecution" };
