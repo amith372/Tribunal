@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { aggregate, type RunRecord } from "../aggregate.js";
 import { buildExportHtml, escapeHtml } from "../export.js";
-import { NO_ANSWER } from "../summary.js";
+import { NO_ANSWER, judgeNoAnswer } from "../summary.js";
 import { resolveRunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
@@ -223,6 +223,29 @@ describe("an incomplete run is recorded as incomplete", () => {
     expect(run.outcome.kind).toBe("hung");
     expect(html).toContain("Hung");
     expect(html).toContain("No verdict");
+  });
+
+  /*
+   * The bench is the finding, so a seat that returned nothing accounts for itself where the
+   * reader is already looking rather than pointing two sections down. What it must never do
+   * is account for itself with anything the run did not record: every line here is one of
+   * the attempts the call table below it lists.
+   */
+  it("gives a failed judge's seat the account of its own attempts", async () => {
+    const run = await record({ judges: [GUILTY, NOT_GUILTY, "server_error"] });
+    const html = buildExportHtml(run);
+
+    const failed = run.judges.find((judge) => judge.verdict === null);
+    expect(failed).toBeDefined();
+    expect(html).toContain(judgeNoAnswer(failed!).lead);
+
+    // The advocate's one sentence is not what a judge gets any more — a statement is
+    // whatever came back, a verdict went through a parser, and only one of the two leaves
+    // a record of what it refused.
+    expect(html).toContain("provider error");
+    for (const line of judgeNoAnswer(failed!).attempts) {
+      expect(html).toContain(escapeHtml(line));
+    }
   });
 
   it("records an abandoned trial as abandoned", async () => {

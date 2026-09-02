@@ -36,6 +36,7 @@ import {
   bySide,
   closingLines,
   headline,
+  judgeNoAnswer,
   PANELS,
   rolesAnswered,
   runSubtitle,
@@ -118,6 +119,10 @@ function judge(id: string, name: string, verdict: Verdict | null): JudgeView {
     ok: verdict !== null,
     error: verdict === null ? "Nothing readable came back." : null,
     errorKind: verdict === null ? "bad_response" : null,
+    // The call itself failed here, so there is no parse to have a problem with. The seat
+    // whose calls succeeded and whose replies were unreadable is the other case, and
+    // `judgeNoAnswer` is tested against both below.
+    problem: null,
     attempts: [attempt(`judge:${id}`, verdict === null ? { ok: false } : {})],
   };
 }
@@ -421,6 +426,77 @@ describe("the closing slide", () => {
 });
 
 /* ---- the masthead ------------------------------------------------------------------------------------ */
+
+/*
+ * A seat that returned no verdict says what happened to it, on the bench panel and in the
+ * exported file both. The point of these assertions is that the account is *read* — from
+ * the attempts the call table already lists and from the parser's own record of what it
+ * refused — and never composed out of a guess about what a model meant to say.
+ */
+describe("a bench seat that never ruled gives its account", () => {
+  it("says how many times it was asked, and what stopped the last reply", () => {
+    const account = judgeNoAnswer({
+      errorKind: null,
+      problem: "truncated",
+      attempts: [
+        attempt("judge:barak", { requestedModel: JUDGE_MODEL, respondedModel: JUDGE_MODEL }),
+        attempt("judge:barak", {
+          attempt: 2,
+          isRetry: true,
+          requestedModel: JUDGE_MODEL,
+          respondedModel: JUDGE_MODEL,
+        }),
+      ],
+    });
+
+    expect(account.lead).toContain("two attempts");
+    expect(account.lead).toContain("cut off before it reached the ruling");
+    expect(account.lead).toContain("No verdict was inferred");
+    expect(account.attempts).toHaveLength(2);
+  });
+
+  /*
+   * The confusing case, and the reason the seat says anything at all: the call table reads
+   * "ok" beside a judge who answered nothing, because `ok` is the call's verdict on itself
+   * — a request that succeeded and a body that came back. The seat has to say that the body
+   * was the unusable part, or the two panels look like they disagree.
+   */
+  it("distinguishes a call that succeeded and said nothing usable from one that failed", () => {
+    const account = judgeNoAnswer({
+      errorKind: null,
+      problem: "no_verdict",
+      attempts: [
+        attempt("judge:elon", { ok: true, requestedModel: JUDGE_MODEL, respondedModel: JUDGE_MODEL }),
+        attempt("judge:elon", {
+          attempt: 2,
+          isRetry: true,
+          ok: false,
+          errorKind: "rate_limited",
+          requestedModel: JUDGE_MODEL,
+          respondedModel: null,
+        }),
+      ],
+    });
+
+    expect(account.attempts[0]).toContain("answered, no ruling in it");
+    expect(account.attempts[0]).toContain("160 tokens");
+    expect(account.attempts[1]).toContain("(retry)");
+    expect(account.attempts[1]).toContain("rate-limited");
+  });
+
+  /* An error kind never reaches the reader with its underscores on (specs.md Part 5). */
+  it("says a failed chain in words rather than in error kinds", () => {
+    const account = judgeNoAnswer({
+      errorKind: "rate_limited",
+      problem: null,
+      attempts: [attempt("judge:shamgar", { ok: false, errorKind: "rate_limited" })],
+    });
+
+    expect(account.lead).toContain("rate-limited");
+    expect(account.lead).not.toContain("rate_limited");
+    expect(account.lead).toContain("one attempt");
+  });
+});
 
 describe("the masthead line", () => {
   it("names the defendant, the run's own date and how it was cast", () => {

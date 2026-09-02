@@ -59,6 +59,7 @@ import {
   sideTone,
   stages,
   summaryRows,
+  judgeNoAnswer,
   NO_ANSWER,
   usageOf,
   VERDICT_LABEL,
@@ -122,10 +123,20 @@ function statementBlock(statement: StatementOutcome): string {
 
 function judgeBlock(judge: JudgeOutcome): string {
   if (judge.verdict === null) {
+    // A seat that did not rule gives its account here rather than pointing at the table two
+    // sections down (`summary.ts`, `judgeNoAnswer`): the bench is the finding, and every
+    // line below is the same attempt the table lists, said in words.
+    const account = judgeNoAnswer(judge);
     return `<article class="card missing">
       <h3 class="display">${escapeHtml(judge.name)}</h3>
-      <p class="absent">${escapeHtml(NO_ANSWER)}</p>
-      <p class="meta">${escapeHtml(judge.model ?? "—")}</p>
+      <p class="absent">${escapeHtml(account.lead)}</p>
+      ${
+        account.attempts.length === 0
+          ? ""
+          : `<ul class="tries">${account.attempts
+              .map((line) => `<li>${escapeHtml(line)}</li>`)
+              .join("")}</ul>`
+      }
     </article>`;
   }
   const usage = usageOf(judge.attempts);
@@ -379,6 +390,20 @@ h3 { margin: 0 0 2px; font-size: 18px; font-weight: 600; }
 
 .card.missing { background: var(--panel-inset); border-style: dashed; }
 .card.missing.side-defense, .card.missing.side-prosecution { border-top-style: solid; }
+
+/* The asks behind a seat that never ruled: the call table's own rows, in mono so they read
+ * as machine record rather than as prose about the case. */
+.tries {
+  margin: 10px 0 0;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--hairline);
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--faint);
+  word-break: break-word;
+}
 
 .plaque {
   margin: 0 0 8px;

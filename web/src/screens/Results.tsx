@@ -29,6 +29,7 @@ import {
   usageOf,
   VERDICT_LABEL,
   closingLines,
+  judgeNoAnswer,
   NO_ANSWER,
 } from "@record/summary.js";
 import { stepPanel } from "../panel-nav.js";
@@ -331,6 +332,7 @@ function JudgeCard({
 }) {
   const usage = usageOf(judge.attempts);
   const ruled = judge.verdict !== null;
+  const account = judgeNoAnswer(judge);
   const notes = [
     `${judge.reasonCount} ${judge.reasonCount === 1 ? "reason" : "reasons"}`,
     ...(judge.thinReasoning && ruled ? ["thinner than the two asked for"] : []),
@@ -361,18 +363,28 @@ function JudgeCard({
       {open && (
         <div className="results-judge-body">
           {ruled ? (
-            <p className="results-reasoning">{judge.reasoning}</p>
+            <>
+              <p className="results-reasoning">{judge.reasoning}</p>
+              <div className="mono results-meta">
+                {judge.model ?? judge.requestedModel} · {notes.join(" · ")}
+                {judge.model !== null && judge.model !== judge.requestedModel && (
+                  <> · fell back from {judge.requestedModel}</>
+                )}
+              </div>
+            </>
           ) : (
-            <p className="results-reasoning is-absent">
-              {NO_ANSWER}
-            </p>
+            /* The seat gives its own account instead of pointing at panel 4: the bench is
+               the finding, so a reader who opens a seat that did not rule is asking exactly
+               this question. The lines are the same asks the call table lists. */
+            <>
+              <p className="results-reasoning is-absent">{account.lead}</p>
+              <ul className="mono results-tries">
+                {account.attempts.map((line, index) => (
+                  <li key={index}>{line}</li>
+                ))}
+              </ul>
+            </>
           )}
-          <div className="mono results-meta">
-            {judge.model ?? judge.requestedModel} · {notes.join(" · ")}
-            {judge.model !== null && judge.model !== judge.requestedModel && (
-              <> · fell back from {judge.requestedModel}</>
-            )}
-          </div>
         </div>
       )}
     </article>

@@ -18,7 +18,7 @@ import type {
 import { type RunSession, type RunSnapshot } from "../run-session.js";
 // Tokens and time for one role, summed across its attempts — the same reading the results
 // panels use, kept in one place so a card and a panel cannot disagree about a role's cost.
-import { NO_ANSWER, usageOf } from "@record/summary.js";
+import { NO_ANSWER, judgeNoAnswer, usageOf } from "@record/summary.js";
 import "./Run.css";
 
 /**
@@ -563,8 +563,10 @@ function JudgeSeat({
         {phase === "failed" && (
           <>
             <div className="run-seat-status is-failed">No readable verdict</div>
+            {/* The seat's own account, the same sentence the results panel gives it — the
+                live screen and the record must not word one failure two ways. */}
             <div className="mono run-seat-meta">
-              {NO_ANSWER}
+              {judge ? judgeNoAnswer(judge).lead : NO_ANSWER}
             </div>
           </>
         )}

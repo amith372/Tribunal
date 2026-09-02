@@ -302,6 +302,19 @@
   font-style: italic;
 }
 
+/* The asks behind a seat that never ruled — the same rows panel 4 lists, and set in mono
+   for the same reason: they are machine record, not prose about the case. */
+.results-tries {
+  margin: 0;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--hairline);
+  list-style: none;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--faint);
+  word-break: break-word;
+}
+
 /* ---- panel 3: the advocates ------------------------------------------------------------------ */
 
 /* Defense left, prosecution right — the order Side Select and the trial screen hold. */
