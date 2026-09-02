@@ -108,6 +108,12 @@ export interface ModelRegistry {
  */
 export const JUDGE_INELIGIBLE: ReadonlyMap<string, string> = new Map([
   ["dots-studio/dots-3-note-preview:free", "writes well and returned empty content on both attempts at a verdict"],
+  // Seated on the bench twice and ruled zero times — no readable verdict either occasion,
+  // 2026-09-01 and 2026-09-02. Added on the second, not the first: specs.md Part 5 asks for
+  // *repeated* unreadable output before eligibility is withdrawn, because one silence is a
+  // bad afternoon and two is a property. It is not excluded outright; nothing suggests it
+  // cannot argue, and the advocates' pool keeps it where `statement-check.ts` can screen it.
+  ["nvidia/nemotron-3.5-lightning:free", "seated as a judge twice, returned no readable verdict either time"],
 ]);
 
 /** How many models each pool needs before a run can be cast at all. */

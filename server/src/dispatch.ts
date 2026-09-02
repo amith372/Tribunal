@@ -33,10 +33,26 @@
  * Which of the two OpenRouter's free tier applies is not something this app can see from
  * outside, and no amount of reasoning here will settle it.
  *
- * So this is built as the place the question can be *answered* rather than as a fix asserted
- * to work: the pacing is one constant in one module, and `runs.jsonl` already records the
- * error kind of every attempt. Comparing the rate-limited share before and after is a real
- * experiment, and it is the only thing that should decide whether this constant stays.
+ * So this was built as the place the question could be *answered* rather than as a fix
+ * asserted to work: the pacing is one constant in one module, and `runs.jsonl` records the
+ * error kind of every attempt.
+ *
+ * **The experiment has since been run, and it supports the stagger.** Two runs on 2026-09-02:
+ *
+ *                        first attempts rate-limited      all attempts
+ *     before (no wait)          25 / 63  = 39.7%          31 / 104 = 29.8%
+ *     after  (300ms)             1 / 14  =  7.1%           5 /  21 = 23.8%
+ *
+ * The first column is the one the stagger can affect and it moved (z = 2.33). The second
+ * did not (z = 0.55), which is what should happen: a stagger spaces *first* attempts, and
+ * retries and fallbacks are already spread out in time by the failures that caused them.
+ * The prediction that first attempts were the burst position was written down before these
+ * two runs existed, so the subgroup was not chosen after seeing the result.
+ *
+ * **It is not settled.** Fourteen first attempts is a small sample, two runs is a small
+ * sample, and the free tier's behaviour is not stable week to week. What can be said is that
+ * the number is no longer a guess, and that the evidence points the way the mechanism said
+ * it would. Re-run the comparison before trusting it further.
  * ---------------------------------------------------------------------------------------
  *
  * The cost is bounded and small: at four seats a wave is delayed by three intervals, and a
@@ -47,11 +63,12 @@
 /**
  * How long to wait between releasing one call and the next, within a wave.
  *
- * **Deliberately a guess, and labelled as one.** Long enough that a saturated pool has a
- * moment to drain, short enough that nobody watching the trial screen can see it. Every
- * other number in this project carries the measurement that produced it; this one carries
- * the experiment that has not been run yet, which is a different thing and should not be
- * dressed up as the first.
+ * Long enough that a saturated pool has a moment to drain, short enough that nobody watching
+ * the trial screen can see it. It began as a guess and is no longer one: measured over two
+ * runs on 2026-09-02, first-attempt rate limits fell from 39.7% to 7.1% while the overall
+ * share did not move, which is exactly the shape a working stagger has. The sample is small
+ * and the docblock above says so — what it is not any more is an assertion with nothing
+ * behind it.
  */
 export const WAVE_STAGGER_MS = 300;
 
