@@ -26,24 +26,24 @@ The decisions that shape it, each a judgement rather than a recipe:
 
 ## Part 2 — Testable success criteria
 
-Each has one true-or-false answer anyone can check:
+Each has one true-or-false answer anyone can check. **They are numbered, and the number is how the rest of this file and the test names refer to them** — a criterion quoted in full in three places is three copies that can drift, and "criterion 5" is checkable by anyone holding the file.
 
-- Every completed run shows exactly four statements — two for, two against — and three verdicts.
-- A run in which an advocate failed to deliver is shown and exported as an incomplete trial, naming which advocate is missing, rather than as a completed run that happens to have three statements. A run in which both advocates on one side failed returns no verdict at all.
-- The final verdict equals the majority of the three shown verdicts (3–0 or 2–1). If a judge fails, the result reads Hung (1–1) or Inconclusive, and no verdict is invented.
-- Each judge shows exactly one verdict, guilty or not guilty, together with its reasoning. Two distinct reasons is what is asked for and what the app reports against — it shows how many the judge actually gave — but a verdict that arrived with thinner reasoning than that is still shown and still counted toward the majority. Discarding a real verdict over the quality of its prose would be a worse failure than reporting a thin one.
-- The token total on the results panel equals the per-call token numbers added up, and the price reads $0 while only free models are used.
-- The defendant never appears among the two prosecuting advocates. Where they were cast at all, they were cast to defend; a run that put the accused on the side accusing them was refused before any model call.
-- Exactly four advocates are cast, each a different one of the five characters, and exactly one character is left out of every run.
-- No model call is made unless the defendant is one of the five characters in `characters.md` and the setup is valid; an invalid setup is refused with a message and zero calls spent.
-- A charge sheet that never names the chosen defendant is refused before any model call, and the refusal states which names were searched for, so the user can see why it failed rather than guess.
-- A charge sheet shorter than 10 words or longer than 300 cannot be submitted. Every statement and judge reply is measured against its word limit, and one that runs over is recorded and shown as such — the limit is a soft cap, so going over is reported, never prevented.
-- A charge sheet that names the defendant but accuses them of nothing and asks nothing is refused before any model call, with a refusal that says what was missing.
-- The setup screens' preview of those checks reaches the same answer as the server, on every case in the pre-flight's own catalogue. The screens re-apply the rules so a fault is found while typing, and a preview that has drifted out of step is worse than no preview at all: it encourages a setup the server will refuse, and the user pays a request to find out. Where the two disagree the server decides — but a disagreement is a defect, and it is a defect anyone can check for rather than one that waits to be discovered by a refused run.
-- Every model call in a run used a model the app had found eligible: reported free by OpenRouter, satisfying the free rule on its own identifier, not on the recorded exclusions, and fit for the role it was seated in. A request naming any other model is ignored, and there is no field, setting, or environment variable by which a run can be made to use a paid model.
-- The exported record and the results panels describe the same run in the same words. The file's five sections are the panels' five, in the panels' order and under the panels' headings, and the sentences inside them — the finding and its tally, which advocates argued which side, how the calls group into waves, the closing summary and who dissented — are derived once and rendered twice rather than written twice. A disagreement between the two is a defect, and it is one anybody can check for rather than one that waits to be noticed by a reader holding a printout beside a screen.
-- The exported record wears the app's own palette, and a colour that changes in one and not the other is a test failure rather than something noticed by eye. The file cannot share the app's stylesheet — it has to open with nothing to link to — so it carries a copy, and a copy nothing checks is a copy that drifts. What makes the duplication safe is that every colour the document uses is held against the design tokens the four screens are drawn from. This is not decoration: Part 3 asks a reader to check the panels against this file, and a record that looks like a different product from the app that produced it invites exactly the doubt it exists to remove.
-- A finished run exports as one HTML file that opens from disk with no server and no network, carrying the charge sheet, the casting, the four statements, the three verdicts with reasoning, the per-call model/token/price table and the raw model responses — and its numbers match what the app showed.
+1. Every completed run shows exactly four statements — two for, two against — and three verdicts.
+2. A run in which an advocate failed to deliver is shown and exported as an incomplete trial, naming which advocate is missing, rather than as a completed run that happens to have three statements. A run in which both advocates on one side failed returns no verdict at all.
+3. The final verdict equals the majority of the three shown verdicts (3–0 or 2–1). If a judge fails, the result reads Hung (1–1) or Inconclusive, and no verdict is invented.
+4. Each judge shows exactly one verdict, guilty or not guilty, together with its reasoning. Two distinct reasons is what is asked for and what the app reports against — it shows how many the judge actually gave — but a verdict that arrived with thinner reasoning than that is still shown and still counted toward the majority. Discarding a real verdict over the quality of its prose would be a worse failure than reporting a thin one.
+5. The token total on the results panel equals the per-call token numbers added up, and the price reads $0 while only free models are used.
+6. The defendant never appears among the two prosecuting advocates. Where they were cast at all, they were cast to defend; a run that put the accused on the side accusing them was refused before any model call.
+7. Exactly four advocates are cast, each a different one of the five characters, and exactly one character is left out of every run.
+8. No model call is made unless the defendant is one of the five characters in `characters.md` and the setup is valid; an invalid setup is refused with a message and zero calls spent.
+9. A charge sheet that never names the chosen defendant is refused before any model call, and the refusal states which names were searched for, so the user can see why it failed rather than guess.
+10. A charge sheet shorter than 10 words or longer than 300 cannot be submitted. Every statement and judge reply is measured against its word limit, and one that runs over is recorded and shown as such — the limit is a soft cap, so going over is reported, never prevented.
+11. A charge sheet that names the defendant but accuses them of nothing and asks nothing is refused before any model call, with a refusal that says what was missing.
+12. The setup screens' preview of those checks reaches the same answer as the server, on every case in the pre-flight's own catalogue. The screens re-apply the rules so a fault is found while typing, and a preview that has drifted out of step is worse than no preview at all: it encourages a setup the server will refuse, and the user pays a request to find out. Where the two disagree the server decides — but a disagreement is a defect, and it is a defect anyone can check for rather than one that waits to be discovered by a refused run.
+13. Every model call in a run used a model the app had found eligible: reported free by OpenRouter, satisfying the free rule on its own identifier, not on the recorded exclusions, and fit for the role it was seated in. A request naming any other model is ignored, and there is no field, setting, or environment variable by which a run can be made to use a paid model.
+14. The exported record and the results panels describe the same run in the same words. The file's five sections are the panels' five, in the panels' order and under the panels' headings, and the sentences inside them — the finding and its tally, which advocates argued which side, how the calls group into waves, the closing summary and who dissented — are derived once and rendered twice rather than written twice. A disagreement between the two is a defect, and it is one anybody can check for rather than one that waits to be noticed by a reader holding a printout beside a screen.
+15. The exported record wears the app's own palette, and a colour that changes in one and not the other is a test failure rather than something noticed by eye. The file cannot share the app's stylesheet — it has to open with nothing to link to — so it carries a copy, and a copy nothing checks is a copy that drifts. What makes the duplication safe is that every colour the document uses is held against the design tokens the four screens are drawn from. This is not decoration: Part 3 asks a reader to check the panels against this file, and a record that looks like a different product from the app that produced it invites exactly the doubt it exists to remove.
+16. A finished run exports as one HTML file that opens from disk with no server and no network, carrying the charge sheet, the casting, the four statements, the three verdicts with reasoning, the per-call model/token/price table and the raw model responses — and its numbers match what the app showed.
 
 ## Part 3 — Architectural guidance
 
@@ -76,6 +76,47 @@ The tribunal answers *guilty* or *not guilty*, and on this question those are th
 Running this case, confirm by eye that: the pre-flight passes (Jon is a story character, he is named in the charge sheet, four advocates are cast from the five, the split is two-for and two-against, and the accused is on the defence rather than the prosecution); four statements appear, each on its assigned side, and Jon's speaks as the accused rather than as a third party discussing himself; three verdicts appear, each guilty or not guilty with at least two reasons; the shown majority equals the count of the three verdicts; and the token total equals the per-call numbers summed, with a price of $0. Then export the run, open the downloaded file from disk with the server stopped, and confirm it renders completely on its own and its numbers match the panels.
 
 Then run the deliberately invalid cases and confirm each is refused before a single model call: a defendant who is not in the story; a three-to-one split; a charge sheet that never names the character chosen as defendant; and **the accused cast on the prosecution**, which is the invalid case the casting rule brought with it — the one arrangement of an otherwise perfect setup that the tribunal will not hear.
+
+### What a test has to prove
+
+The two cases above say *what* to check. This says what makes any check in the suite worth
+having, because a suite can be green from end to end and prove nothing.
+
+- **Every expected value comes from outside the code under test** — from this specification,
+  from the recorded case, from a fixed fixture, or from arithmetic worked by hand in the
+  test. **Never from what the implementation returned.** A suite written the other way proves
+  only that the code agrees with itself: it passes in full, and it fails on the day somebody
+  corrects the bug. Criterion 5 is the shape of it — the expected token total is the per-call
+  numbers added together in the test, not the aggregate's own sum read back and compared to
+  itself.
+- **At least one case a likely wrong implementation would fail.** A test that every plausible
+  wrong version also passes measures nothing. The parser catalogue is built this way on
+  purpose: beside the six shapes free models actually return, it holds the near-misses that
+  are easy to get backwards — a verdict standing under a negation, a lone "guilty" inside an
+  argument, a reply that supports both readings at once.
+- **A fixture is a reply that really arrived.** Free models fail in ways nobody would invent
+  at a desk, which is why every finished run is appended to the local log with its raw
+  responses. A failure kind worth a test is one the log has a body for; a body composed by
+  hand to match the classifier is the first bullet's error wearing a fixture's clothes.
+- **A bug fix carries a regression test, and it joins the shared catalogue** rather than
+  standing in a test of its own, so the stage-gate table prints it too and cannot claim a
+  salvage the tests do not hold to.
+- **A test that two things agree is the second-best answer, and the best one is to delete
+  the second copy.** The run's own sentences were once derived twice with a test holding the
+  copies together, and that test could only ever prove they matched — two copies of a wrong
+  sentence would have passed it. Where a copy cannot be removed, because the exported file
+  has to open with nothing to link to, the agreement test against `tokens.css` is what keeps
+  the duplication honest.
+- **What only a browser can exercise is exercised in the browser, at the stage gate.** The
+  reload that rejoins a run, the stream dropped and reconnected, the export leaving as a
+  download and opening from disk with the server stopped: these are wiring between parts that
+  each pass their own tests, and a flow assembled out of passing unit tests is a flow nobody
+  has performed. It is checked by hand in the running app rather than automated, because
+  seven real calls is what one pass costs.
+- **Write down what was verified**, not that it was: the case, the setup it ran with, the
+  figure expected, the figure that appeared, and what wrong behaviour the check would have
+  caught. The last of those is what separates a test from a demonstration, and it is the part
+  a reader of this project is actually being asked to judge.
 
 ## Part 5 — Known pitfalls
 
