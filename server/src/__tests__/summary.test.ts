@@ -37,6 +37,7 @@ import {
   closingLines,
   headline,
   judgeNoAnswer,
+  statementNoAnswer,
   PANELS,
   rolesAnswered,
   runSubtitle,
@@ -495,6 +496,86 @@ describe("a bench seat that never ruled gives its account", () => {
     expect(account.lead).toContain("rate-limited");
     expect(account.lead).not.toContain("rate_limited");
     expect(account.lead).toContain("one attempt");
+  });
+});
+
+/*
+ * An advocate that delivered nothing gives the same account, for the same reason and read
+ * the same way (specs.md Part 5). The words below are written here rather than taken from
+ * what the function returned: a test that asked the code what it says would pass on any
+ * sentence at all, including one that leaked `meta_commentary` to a reader.
+ */
+describe("an advocate that delivered nothing gives its account", () => {
+  it("says how many times it was asked, and what was wrong with the last reply", () => {
+    const account = statementNoAnswer({
+      errorKind: null,
+      problem: "meta_commentary",
+      attempts: [
+        attempt("advocate:tyrion", { ok: true }),
+        attempt("advocate:tyrion", { attempt: 2, isRetry: true, ok: true }),
+      ],
+    });
+
+    expect(account.lead).toBe(
+      "This advocate gave no usable statement in two attempts — the last reply broke frame " +
+        "and discussed being asked rather than arguing the case. Nothing was written in " +
+        "its place.",
+    );
+    expect(account.lead).not.toContain("meta_commentary");
+    expect(account.attempts).toHaveLength(2);
+  });
+
+  /*
+   * The same confusion the bench has, on the other wave: the call table reads "ok" beside
+   * an advocate who delivered nothing, because the request succeeded and a body came back.
+   * The card is where a reader learns the body was the unusable part — and an advocate's
+   * line must not borrow the bench's words for it, since no ruling was ever asked for.
+   */
+  it("distinguishes a call that answered badly from one that never answered", () => {
+    const account = statementNoAnswer({
+      errorKind: null,
+      problem: "truncated",
+      attempts: [
+        attempt("advocate:cersei", { ok: true }),
+        attempt("advocate:cersei", {
+          attempt: 2,
+          ok: false,
+          errorKind: "rate_limited",
+          respondedModel: null,
+        }),
+      ],
+    });
+
+    expect(account.attempts[0]).toContain("answered, no usable statement in it");
+    expect(account.attempts[0]).not.toContain("ruling");
+    expect(account.attempts[0]).toContain("160 tokens");
+    expect(account.attempts[1]).toContain("rate-limited");
+    expect(account.lead).toContain("cut off before it finished");
+  });
+
+  /* An error kind never reaches the reader with its underscores on (specs.md Part 5). */
+  it("says a failed chain in words rather than in error kinds", () => {
+    const account = statementNoAnswer({
+      errorKind: "server_error",
+      problem: null,
+      attempts: [attempt("advocate:worm", { ok: false, errorKind: "server_error" })],
+    });
+
+    expect(account.lead).toContain("one attempt");
+    expect(account.lead).toContain("the provider errored");
+    expect(account.lead).not.toContain("server_error");
+    expect(account.attempts[0]).toContain("provider error");
+  });
+
+  /* A role the run never got to is a different fact from one that was asked and refused. */
+  it("says so where the advocate was never reached at all", () => {
+    const account = statementNoAnswer({ errorKind: null, problem: null, attempts: [] });
+
+    expect(account.lead).toBe(
+      "This advocate was never reached — nothing usable came back. Nothing was written in " +
+        "its place.",
+    );
+    expect(account.attempts).toEqual([]);
   });
 });
 

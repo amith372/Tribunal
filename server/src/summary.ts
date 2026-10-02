@@ -29,8 +29,9 @@
  * the run did not actually reach.
  */
 
-import type { AttemptView, JudgeOutcomeView, RunRecordView } from "./record-view.js";
+import type { AttemptView, JudgeOutcomeView, RunRecordView, StatementOutcomeView } from "./record-view.js";
 import type { SalvageProblem, Verdict } from "./judge-parser.js";
+import type { StatementProblem } from "./statement-check.js";
 import type { ErrorKind } from "./openrouter.js";
 import type { Side } from "./preflight.js";
 
@@ -82,25 +83,21 @@ export function runSubtitle(record: RunRecordView): string {
   return `${record.defendant.name}, defendant · ${when} · ${MODE_LABEL[record.mode] ?? record.mode}`;
 }
 
-/* ---- a role that never answered ------------------------------------------------------------ */
+/* ---- a role that gave no answer ----------------------------------------------------------- */
 
 /**
- * What a seat says when its chain is spent, on screen and in the exported file alike.
+ * The sentence a card falls back to when the role's own outcome is not to hand.
  *
- * specs.md Part 5: the card states the outcome and points at the summary, because what the
- * provider actually returned — a status code, its name for its own shared pool, an error
- * kind with underscores in it — is written for whoever runs the server. On an advocate's
- * card it reads as a fault in this app rather than as a model declining to answer.
+ * specs.md Part 5 used to make this the *normal* wording for an advocate, with the detail
+ * left to the call table two panels on. It is not that any more: a silent advocate now
+ * gives the same account a silent judge gives (`statementNoAnswer`, `judgeNoAnswer`
+ * below), because a statement passes a screen that records which kind of nothing arrived
+ * just as a verdict passes a parser that does.
  *
- * **This hides nothing.** `stages()` still lists every attempt with its model, its error
- * kind and its elapsed time; the export still carries the raw body; the run is still
- * counted incomplete and the role is still a gap. Only the *place* a reader meets the
- * detail has changed.
- *
- * This is the wording for an **advocate**. A judge's seat says more, and the reason it can
- * is that more is known about it: a statement is whatever came back, so there is nothing to
- * report about a missing one beyond its absence, whereas a verdict went through a parser
- * that recorded which kind of nothing arrived. See `judgeNoAnswer` below.
+ * What is left for this constant is the case where *nothing* is known — the live trial
+ * screen has drawn a seat as failed but the outcome carrying its attempts has not reached
+ * that component. Pointing at the table is the honest thing to do when there is no account
+ * to give.
  */
 export const NO_ANSWER = "Failed to give an answer (see summary at the end for more details).";
 
@@ -118,6 +115,22 @@ const PROBLEM_PHRASE: Record<SalvageProblem, string> = {
   no_verdict: "the last reply never named a verdict",
   contradictory: "the last reply supported both verdicts at once, and neither was chosen",
   truncated: "the last reply was cut off before it reached the ruling",
+};
+
+/**
+ * The same three again, for an advocate: `statement-check.ts` refuses a reply that was
+ * empty, that was cut off mid-sentence, or that broke frame and discussed being asked
+ * instead of arguing the case.
+ *
+ * These are deliberately *not* `StatementCheck.detail`, which names the pattern that
+ * caught the reply ("addresses “the user”") and is written for whoever is
+ * tuning the screen. A reader of a card wants the same half-sentence a judge's card gives
+ * them, in the same voice.
+ */
+const STATEMENT_PROBLEM_PHRASE: Record<StatementProblem, string> = {
+  empty: "the last reply came back empty",
+  truncated: "the last reply was cut off before it finished",
+  meta_commentary: "the last reply broke frame and discussed being asked rather than arguing the case",
 };
 
 /** The same, for a seat whose calls never came back at all. */
@@ -156,28 +169,52 @@ export interface NoAnswerAccount {
 }
 
 /**
- * What a seat on the bench says when it returned no verdict.
+ * What a role says on its own card when it gave nothing.
  *
- * The advocate's card points at the call table and stops there (`NO_ANSWER` above), and for
- * a while the bench did too. That was wrong on the bench specifically: three seats is the
- * whole finding, so a reader whose verdict reads Inconclusive is being asked to accept the
- * central fact of the run — that the bench did not rule — with the detail two panels away
- * and spread over rows they have to pick out by label. The seat that failed is exactly
- * where that reader is looking.
+ * specs.md Part 5: the account is how many times the role was asked, what came back each
+ * time, and what stopped the last of them — met as "rate-limited" and "cut off before it
+ * finished", never as `rate_limited` and never as a `finish_reason`. The detail used to
+ * live only on a judge, with an advocate's card pointing two panels on at the call table.
+ * The argument for that split was that a statement is whatever came back and a missing one
+ * has nothing to report beyond its absence; it was wrong, because `statement-check.ts`
+ * refuses a reply for a recorded reason exactly as the judge parser does, so the same
+ * three things are known about either silence.
  *
- * So the card carries the account: how many times the seat was asked, what came back each
- * time, and what stopped the last of them. **Nothing here is new information** — every line
- * is read off attempts the call table already lists, and the phrases are the run's own
- * outcomes said in words rather than in error kinds. The spec's argument still holds and is
- * what shapes the wording: a reader meets `rate_limited` as "rate-limited" and a
- * `finish_reason: "length"` as "cut off before it reached the ruling", so the line reads as
- * a model failing to answer rather than as this app breaking.
- *
- * **It never explains a verdict, because there is no verdict to explain.** This runs only
- * where `verdict === null`, and it reports calls, not reasoning.
+ * **Nothing here is new information.** Every line is read off attempts the call table
+ * already lists, and the phrases are the run's own outcomes said in words. **And it never
+ * explains a statement or a verdict, because there is none to explain** — each of these
+ * runs only where the role produced nothing, and it reports calls, not reasoning.
+ */
+function noAnswerAccount(
+  attempts: readonly AttemptView[],
+  why: string,
+  phrase: (count: number) => string,
+  /** The promise that nothing was put in the gap — the whole point of printing any of this. */
+  closer: string,
+  /** How a call that came back and was still no good ends its line. */
+  okEnding: string,
+): NoAnswerAccount {
+  return {
+    lead: `${phrase(attempts.length)} — ${why}. ${closer}`,
+    attempts: attempts.map((attempt) => attemptLine(attempt, okEnding)),
+  };
+}
+
+/**
+ * A seat can fail two ways: the calls failed (an error kind), or a call answered and what
+ * it said was refused (a problem). Exactly one of the two is ever set, and the fallback is
+ * for neither — a role that fell over before either was recorded.
+ */
+function whyNothing(errorKind: ErrorKind | null, problem: string | null, fallback: string): string {
+  return errorKind ? ERROR_PHRASE[errorKind] : (problem ?? fallback);
+}
+
+/**
+ * The bench's version. Three seats *are* the finding, so a reader whose verdict reads Hung
+ * or Inconclusive meets the reason on the seat they are already looking at.
  */
 /*
- * Takes only the three fields it reads, on the same argument `headline` above takes a
+ * Takes only the three fields it reads, on the same argument `headline` below takes a
  * `Pick`: the export renders from the full `JudgeOutcome` and the panels from the trimmed
  * view, and a signature naming what it needs lets one function serve both without either
  * side converting a record to satisfy a type.
@@ -185,33 +222,56 @@ export interface NoAnswerAccount {
 export function judgeNoAnswer(
   judge: Pick<JudgeOutcomeView, "attempts" | "errorKind" | "problem">,
 ): NoAnswerAccount {
-  const count = judge.attempts.length;
-  const asked =
-    count === 0 ? "was never reached" : `answered nothing in ${countWord(count)} ` +
-      `${count === 1 ? "attempt" : "attempts"}`;
-
-  // A seat can fail two ways: the calls failed (an error kind), or a call answered and the
-  // parser refused what it said (a problem). Exactly one of the two is ever set.
-  const why = judge.errorKind
-    ? ERROR_PHRASE[judge.errorKind]
-    : judge.problem
-      ? PROBLEM_PHRASE[judge.problem]
-      : "no ruling could be read from what came back";
-
-  return {
-    lead: `This seat ${asked} — ${why}. No verdict was inferred from it.`,
-    attempts: judge.attempts.map(attemptLine),
-  };
+  return noAnswerAccount(
+    judge.attempts,
+    whyNothing(
+      judge.errorKind,
+      judge.problem ? PROBLEM_PHRASE[judge.problem] : null,
+      "no ruling could be read from what came back",
+    ),
+    (count) =>
+      count === 0
+        ? "This seat was never reached"
+        : `This seat answered nothing in ${countWord(count)} ${count === 1 ? "attempt" : "attempts"}`,
+    "No verdict was inferred from it.",
+    "answered, no ruling in it",
+  );
 }
 
-/** One ask, as one line: which try, which model, how it ended, what it spent. */
-function attemptLine(attempt: AttemptView): string {
+/** The advocates' version, on an identical argument. */
+export function statementNoAnswer(
+  statement: Pick<StatementOutcomeView, "attempts" | "errorKind" | "problem">,
+): NoAnswerAccount {
+  return noAnswerAccount(
+    statement.attempts,
+    whyNothing(
+      statement.errorKind,
+      statement.problem ? STATEMENT_PROBLEM_PHRASE[statement.problem] : null,
+      "nothing usable came back",
+    ),
+    (count) =>
+      count === 0
+        ? "This advocate was never reached"
+        : `This advocate gave no usable statement in ${countWord(count)} ` +
+          `${count === 1 ? "attempt" : "attempts"}`,
+    "Nothing was written in its place.",
+    "answered, no usable statement in it",
+  );
+}
+
+/**
+ * One ask, as one line: which try, which model, how it ended, what it spent.
+ *
+ * `okEnding` is the one word the two roles differ on. `ok` here is the call's own verdict
+ * on itself — the request succeeded and a body came back — so on a role that produced
+ * nothing, that body was the unreadable one. That is the whole of why the call table can
+ * read "ok" beside a seat that never ruled, and the line has to say which kind of nothing
+ * the body held.
+ */
+function attemptLine(attempt: AttemptView, okEnding: string): string {
   const model = attempt.respondedModel ?? attempt.requestedModel;
-  // `ok` here is the call's own verdict on itself: the request succeeded and a body came
-  // back. On a seat that ruled nothing, that body was the unreadable one — which is the
-  // whole of why the call table can read "ok" beside a judge who never answered.
   const ending = attempt.ok
-    ? "answered, no ruling in it"
+    ? okEnding
     : (attempt.errorKind ? ERROR_SHORT[attempt.errorKind] : "failed");
   const tokens =
     attempt.usage.totalTokens === null ? "no usage reported" : `${number(attempt.usage.totalTokens)} tokens`;
@@ -234,7 +294,7 @@ export interface PanelSpec {
  */
 export const PANELS: readonly PanelSpec[] = [
   { id: "verdict", label: "The verdict", heading: "The Verdict" },
-  { id: "bench", label: "The bench", heading: "The Bench — three verdicts, each with its reasoning" },
+  { id: "bench", label: "The judges’ reasoning", heading: "The Bench — three verdicts, each with its reasoning" },
   { id: "advocates", label: "The advocates", heading: "The Advocates — two for, two against" },
   { id: "spend", label: "What it spent", heading: "Every Call This Run Made" },
   { id: "closing", label: "In closing", heading: "In Closing" },

@@ -60,7 +60,7 @@ import {
   stages,
   summaryRows,
   judgeNoAnswer,
-  NO_ANSWER,
+  statementNoAnswer,
   usageOf,
   VERDICT_LABEL,
 } from "./summary.js";
@@ -93,14 +93,26 @@ export function exportFileName(record: RunRecord): string {
   return `tribunal-${who || "run"}-${when}.html`;
 }
 
+/** The asks behind a role that gave nothing — the same rows the call table lists. */
+function triesList(lines: readonly string[]): string {
+  return lines.length === 0
+    ? ""
+    : `<ul class="tries">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`;
+}
+
 function statementBlock(statement: StatementOutcome): string {
   const tone = sideTone(statement.side);
   const plaque = tone === "defense" ? "For the defense" : "For the prosecution";
   if (!statement.ok) {
+    // An advocate that gave nothing accounts for itself here rather than pointing at the
+    // table two sections down (`summary.ts`, `statementNoAnswer`, and specs.md Part 5):
+    // every line below is the same attempt that table lists, said in words.
+    const account = statementNoAnswer(statement);
     return `<article class="card missing side-${tone}">
       <h3 class="display">${escapeHtml(statement.name)}</h3>
       <p class="plaque ${tone}">${plaque}</p>
-      <p class="absent">${escapeHtml(NO_ANSWER)}</p>
+      <p class="absent">${escapeHtml(account.lead)}</p>
+      ${triesList(account.attempts)}
     </article>`;
   }
   // The word cap is soft (specs.md Part 2): a reply that ran over is reported here exactly
@@ -130,13 +142,7 @@ function judgeBlock(judge: JudgeOutcome): string {
     return `<article class="card missing">
       <h3 class="display">${escapeHtml(judge.name)}</h3>
       <p class="absent">${escapeHtml(account.lead)}</p>
-      ${
-        account.attempts.length === 0
-          ? ""
-          : `<ul class="tries">${account.attempts
-              .map((line) => `<li>${escapeHtml(line)}</li>`)
-              .join("")}</ul>`
-      }
+      ${triesList(account.attempts)}
     </article>`;
   }
   const usage = usageOf(judge.attempts);

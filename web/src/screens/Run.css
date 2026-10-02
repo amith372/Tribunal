@@ -385,8 +385,14 @@
   flex-wrap: wrap;
 }
 
+/* Two sentences now — what the judges see, and where their reasoning will appear — so it
+   is given a measure to wrap inside rather than pushing the heading off its own line. */
 .run-bench-note {
+  max-width: 44ch;
   font-size: var(--fs-sm);
+  line-height: 1.55;
+  text-align: right;
+  text-wrap: pretty;
   color: var(--muted);
 }
 

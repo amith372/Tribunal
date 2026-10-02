@@ -199,6 +199,17 @@
   color: var(--muted);
 }
 
+/* Three seats say what each judge found and nothing of why; this says where the why is.
+   It is navigation rather than record, which is also why it is quieter than the footnote
+   at the foot of the panel and why the exported file has no counterpart to it. */
+.results-onward {
+  margin: -6px 0 0;
+  font-size: 13.5px;
+  font-style: italic;
+  color: var(--gold-deep);
+  text-align: center;
+}
+
 .results-charge {
   display: flex;
   align-items: flex-start;
@@ -313,6 +324,13 @@
   line-height: 1.7;
   color: var(--faint);
   word-break: break-word;
+}
+
+/* On a statement card the asks are followed by the card's own meta line, and two hairlines
+   eleven pixels apart read as a mistake. The list already rules the block off. */
+.results-tries + .results-meta {
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ---- panel 3: the advocates ------------------------------------------------------------------ */

@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { aggregate, type RunRecord } from "../aggregate.js";
 import { buildExportHtml, escapeHtml } from "../export.js";
-import { NO_ANSWER, judgeNoAnswer } from "../summary.js";
+import { judgeNoAnswer, statementNoAnswer } from "../summary.js";
 import { resolveRunModels } from "../casting.js";
 import { loadData } from "../data.js";
 import { runJudging } from "../judging.js";
@@ -206,13 +206,18 @@ describe("an incomplete run is recorded as incomplete", () => {
     expect(run.complete).toBe(false);
     expect(html).toContain("incomplete trial");
 
-    // The card says the one sentence (specs.md Part 5) rather than the provider's own
-    // words for its failure.
-    expect(html).toContain(NO_ANSWER);
+    // The card gives its own account (specs.md Part 5), in the reader's words rather than
+    // the provider's: "provider error", never `server_error`.
+    const silent = run.statements.find((statement) => !statement.ok);
+    expect(silent).toBeDefined();
+    expect(html).toContain(escapeHtml(statementNoAnswer(silent!).lead));
+    expect(html).toContain("provider error");
+    for (const line of statementNoAnswer(silent!).attempts) {
+      expect(html).toContain(escapeHtml(line));
+    }
 
-    // **And the detail is still in the document.** Moving where a reader meets it is the
-    // whole change; losing it would not be. The call table still carries the failed
-    // attempt, its error kind and the model that refused.
+    // **And the raw detail is still in the document**, where it was before any of this —
+    // the call table carries the failed attempt, its error kind and the model that refused.
     expect(html).toContain("server_error");
   });
 
@@ -239,9 +244,7 @@ describe("an incomplete run is recorded as incomplete", () => {
     expect(failed).toBeDefined();
     expect(html).toContain(judgeNoAnswer(failed!).lead);
 
-    // The advocate's one sentence is not what a judge gets any more — a statement is
-    // whatever came back, a verdict went through a parser, and only one of the two leaves
-    // a record of what it refused.
+    // Said as a reader meets it, never as the provider wrote it.
     expect(html).toContain("provider error");
     for (const line of judgeNoAnswer(failed!).attempts) {
       expect(html).toContain(escapeHtml(line));

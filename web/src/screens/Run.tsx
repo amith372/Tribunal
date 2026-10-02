@@ -18,7 +18,7 @@ import type {
 import { type RunSession, type RunSnapshot } from "../run-session.js";
 // Tokens and time for one role, summed across its attempts — the same reading the results
 // panels use, kept in one place so a card and a panel cannot disagree about a role's cost.
-import { NO_ANSWER, judgeNoAnswer, usageOf } from "@record/summary.js";
+import { NO_ANSWER, judgeNoAnswer, statementNoAnswer, usageOf } from "@record/summary.js";
 import "./Run.css";
 
 /**
@@ -305,8 +305,12 @@ export function Run({
         <Panel tone="inset" sunken className="run-bench">
           <div className="run-bench-head">
             <h2 className="section-heading">The Bench</h2>
+            {/* The second sentence is specs.md Part 1: these seats will report a verdict
+                and a count of reasons and never the reasoning itself, so the screen says
+                where the reasoning does appear rather than leaving a reader to find out. */}
             <span className="run-bench-note">
-              The judges read the four statements by side, never by name.
+              The judges read the four statements by side, never by name. Each judge’s full
+              reasoning appears on the verdict screen.
             </span>
           </div>
           <div className="run-bench-seats">
@@ -426,8 +430,12 @@ function AdvocateCard({
       )}
 
       {phase === "failed" && (
+        /* The card's own account, the same first sentence the results panel gives it — the
+           live screen and the record must not word one failure two ways. The asks behind it
+           stay on the results panel, which is built to be read rather than watched
+           (specs.md Part 5). */
         <p className="run-card-error">
-          {NO_ANSWER}
+          {statement ? statementNoAnswer(statement).lead : NO_ANSWER}
         </p>
       )}
 

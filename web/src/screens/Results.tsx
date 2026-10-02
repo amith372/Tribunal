@@ -30,7 +30,7 @@ import {
   VERDICT_LABEL,
   closingLines,
   judgeNoAnswer,
-  NO_ANSWER,
+  statementNoAnswer,
 } from "@record/summary.js";
 import { stepPanel } from "../panel-nav.js";
 import "./Results.css";
@@ -280,6 +280,12 @@ function VerdictPanel({ record }: { record: RunRecordView }) {
         ))}
       </div>
 
+      {/* specs.md Part 1: three seats with a word each, under a finding in letters an inch
+          high — a reader who wants the reasoning is one panel away and has no reason to
+          believe it exists. This is navigation and not record, so it stays in the browser:
+          the exported file is one scrolling document with no next panel. */}
+      <p className="results-onward">Each judge’s reasoning is on the next panel.</p>
+
       <div className="results-charge">
         <span className="display results-charge-label">The charge</span>
         <p className="results-charge-text">{record.chargeSheet}</p>
@@ -425,6 +431,7 @@ function AdvocatesPanel({ record }: { record: RunRecordView }) {
 function StatementCard({ statement }: { statement: StatementView }) {
   const tone = sideTone(statement.side);
   const usage = usageOf(statement.attempts);
+  const account = statementNoAnswer(statement);
 
   return (
     <article className={`results-statement side-${tone}${statement.ok ? "" : " is-failed"}`}>
@@ -445,9 +452,18 @@ function StatementCard({ statement }: { statement: StatementView }) {
       {statement.ok ? (
         <p className="results-speech">{statement.text}</p>
       ) : (
-        <p className="results-speech is-absent">
-          {NO_ANSWER}
-        </p>
+        /* The card gives its own account rather than pointing at panel 4 (specs.md Part 5):
+           every line is an ask the call table already lists, said in words. */
+        <>
+          <p className="results-speech is-absent">{account.lead}</p>
+          {account.attempts.length > 0 && (
+            <ul className="mono results-tries">
+              {account.attempts.map((line, index) => (
+                <li key={index}>{line}</li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       <div className="mono results-meta">
