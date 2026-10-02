@@ -430,12 +430,12 @@ function AdvocateCard({
       )}
 
       {phase === "failed" && (
-        /* The card's own account, the same first sentence the results panel gives it — the
-           live screen and the record must not word one failure two ways. The asks behind it
-           stay on the results panel, which is built to be read rather than watched
-           (specs.md Part 5). */
+        /* The card's own account, in the live form: the first sentence, then where the asks
+           behind it can be read. They stay on the results panel, which is built to be read
+           rather than watched, so this card says so rather than ending on a promise the
+           reader has no way to check from here (specs.md Parts 1 and 5). */
         <p className="run-card-error">
-          {statement ? statementNoAnswer(statement).lead : NO_ANSWER}
+          {statement ? statementNoAnswer(statement).live : NO_ANSWER}
         </p>
       )}
 
@@ -571,10 +571,11 @@ function JudgeSeat({
         {phase === "failed" && (
           <>
             <div className="run-seat-status is-failed">No readable verdict</div>
-            {/* The seat's own account, the same sentence the results panel gives it — the
-                live screen and the record must not word one failure two ways. */}
+            {/* The seat's own account, in the live form: the status above already says
+                nothing could be read, so this line says where the asks behind it are
+                (specs.md Parts 1 and 5). */}
             <div className="mono run-seat-meta">
-              {judge ? judgeNoAnswer(judge).lead : NO_ANSWER}
+              {judge ? judgeNoAnswer(judge).live : NO_ANSWER}
             </div>
           </>
         )}

@@ -164,6 +164,17 @@ const ERROR_SHORT: Record<ErrorKind, string> = {
 export interface NoAnswerAccount {
   /** One sentence: how many asks there were, and what stopped the last of them. */
   readonly lead: string;
+  /**
+   * The same sentence for a card that is still watching the run, where the asks below are
+   * not on the screen yet.
+   *
+   * It is `lead` with the promise at the end swapped for where the account can be read,
+   * because that promise is the one thing a live card cannot keep: the list of asks is one
+   * screen away and nothing on this one says so. The record keeps `lead` — specs.md Part 1
+   * holds that a line pointing at another screen belongs to the app and never to the
+   * exported file, which has no next panel to point at.
+   */
+  readonly live: string;
   /** One line per ask — what was asked, what came back, what it cost. */
   readonly attempts: readonly string[];
 }
@@ -193,9 +204,13 @@ function noAnswerAccount(
   closer: string,
   /** How a call that came back and was still no good ends its line. */
   okEnding: string,
+  /** The live card's version of the same sentence — see `NoAnswerAccount.live`. */
+  live: (head: string, why: string) => string,
 ): NoAnswerAccount {
+  const head = phrase(attempts.length);
   return {
-    lead: `${phrase(attempts.length)} — ${why}. ${closer}`,
+    lead: `${head} — ${why}. ${closer}`,
+    live: live(head, why),
     attempts: attempts.map((attempt) => attemptLine(attempt, okEnding)),
   };
 }
@@ -235,6 +250,10 @@ export function judgeNoAnswer(
         : `This seat answered nothing in ${countWord(count)} ${count === 1 ? "attempt" : "attempts"}`,
     "No verdict was inferred from it.",
     "answered, no ruling in it",
+    // The seat tile already carries "No readable verdict" above this line, so the live
+    // version spends its remaining room on where the asks are rather than on repeating
+    // that nothing could be read.
+    (head) => `${head} — see details at verdict.`,
   );
 }
 
@@ -256,6 +275,7 @@ export function statementNoAnswer(
           `${count === 1 ? "attempt" : "attempts"}`,
     "Nothing was written in its place.",
     "answered, no usable statement in it",
+    (head, why) => `${head} — ${why}. See verdict page for details.`,
   );
 }
 

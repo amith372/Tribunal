@@ -567,6 +567,51 @@ describe("an advocate that delivered nothing gives its account", () => {
     expect(account.attempts[0]).toContain("provider error");
   });
 
+  /*
+   * The live card's version, and the one difference between it and the record's (specs.md
+   * Parts 1 and 5). Both sentences are written out here rather than compared to each other:
+   * a test that only asserted they differed would pass on a live card that pointed at a
+   * screen the app does not have.
+   */
+  it("points a live card at the verdict screen, where the record names the gap instead", () => {
+    const silent = {
+      errorKind: "server_error" as const,
+      problem: null,
+      attempts: [
+        attempt("advocate:worm", { ok: false, errorKind: "server_error" }),
+        attempt("advocate:worm", { attempt: 2, ok: false, errorKind: "server_error" }),
+        attempt("advocate:worm", { attempt: 3, ok: false, errorKind: "server_error" }),
+      ],
+    };
+
+    expect(statementNoAnswer(silent).live).toBe(
+      "This advocate gave no usable statement in three attempts — the provider errored. " +
+        "See verdict page for details.",
+    );
+    expect(statementNoAnswer(silent).lead).toBe(
+      "This advocate gave no usable statement in three attempts — the provider errored. " +
+        "Nothing was written in its place.",
+    );
+
+    const seat = {
+      errorKind: null,
+      problem: "truncated" as const,
+      attempts: [
+        attempt("judge:barak", { ok: true }),
+        attempt("judge:barak", { attempt: 2, isRetry: true, ok: true }),
+        attempt("judge:barak", { attempt: 3, ok: true }),
+      ],
+    };
+
+    expect(judgeNoAnswer(seat).live).toBe(
+      "This seat answered nothing in three attempts — see details at verdict.",
+    );
+    expect(judgeNoAnswer(seat).lead).toBe(
+      "This seat answered nothing in three attempts — the last reply was cut off before it " +
+        "reached the ruling. No verdict was inferred from it.",
+    );
+  });
+
   /* A role the run never got to is a different fact from one that was asked and refused. */
   it("says so where the advocate was never reached at all", () => {
     const account = statementNoAnswer({ errorKind: null, problem: null, attempts: [] });

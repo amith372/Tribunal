@@ -22,7 +22,7 @@ decision comes up, resolve it toward what makes the spec correct and the process
 |---|---|
 | Backend | Node + TypeScript (Express); pure pipeline modules, thin routing layer. Model **policy** (`config.ts`) and model **casting** (`casting.ts`) are separate, and the dependency runs one way — a test fails if it ever reverses |
 | Frontend | React + Vite + TypeScript, single page, SSE-driven |
-| Assets | Avatar art as ≤256 px WebP in `web/public/avatars/` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.png` / `undone_judge.png`. The 17 source PNGs live in `C:\Users\Amit_PC\Downloads\Tribunal` and are never committed |
+| Assets | Avatar art as ≤256 px WebP in `web/public/avatars/` — `idle_*` / `thinking_*` / `happy_*` per character (`jon`, `daenerys`, `tyrion`, `worm`, `cersei`) plus a shared `judge.webp` / `undone_judge.webp`. The 17 source PNGs live in `C:\Users\Amit_PC\Downloads\Tribunal` and are never committed |
 | Models | OpenRouter, free (`:free`) models only. Roster membership discovered from OpenRouter at runtime; eligibility and casting server-side, never user-reachable |
 | Case data | `data/characters.md`, `data/relations.md`, `data/judges.md` — the only source of character facts. Five characters, ten relations, three judges (Barak, Elon, Shamgar), each judge's persona adapted from three of their reported opinions, which the file cites |
 | Persistence | MongoDB Atlas archives every finished run server-side (`MONGODB_URI` / `MONGODB_DB`, unset means no archive and the app degrades cleanly); the exported HTML file is the portable copy, rebuildable from the archive |

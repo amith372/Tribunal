@@ -251,6 +251,27 @@ describe("an incomplete run is recorded as incomplete", () => {
     }
   });
 
+  /*
+   * specs.md Part 1: a line pointing at another screen is navigation, and navigation belongs
+   * to the app. The exported file is one scrolling document with no verdict screen to send a
+   * reader to, so the pointer the live cards end on must not appear in it anywhere — not on
+   * a silent advocate and not on a seat that never ruled.
+   */
+  it("sends the reader to no screen, because the file has none", async () => {
+    const run = await record({
+      advocates: ["One.", "Two.", "server_error", "Four."],
+      judges: [GUILTY, NOT_GUILTY, "server_error"],
+    });
+    const html = buildExportHtml(run);
+
+    expect(html).not.toContain("See verdict page for details");
+    expect(html).not.toContain("see details at verdict");
+
+    // The record's own ending is what stands in its place, on both roles.
+    expect(html).toContain("Nothing was written in its place.");
+    expect(html).toContain("No verdict was inferred from it.");
+  });
+
   it("records an abandoned trial as abandoned", async () => {
     const run = await record({
       advocates: ["One.", "Two.", "server_error", "server_error"],
